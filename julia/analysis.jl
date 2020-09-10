@@ -1,73 +1,78 @@
-using Distributed
-@everywhere begin
-    include("params.jl")
-    include("utils.jl")
-    include("meta_mdp.jl")
-    include("bmps.jl")
-    include("data.jl")
-    include("models_base.jl")
-    include("models.jl")
-end
-# %% ====================  ====================
+# %% ==================== Set up ====================
+
+using StatsBase
+using DataStructures: OrderedDict
+using Lazy: @as
+
+include("utils.jl")
+include("meta_mdp.jl")
+include("data.jl")
+
 version = "1.0"
 all_trials = load_trials(version);
-grouped_trials = group(x->x.pid, all_trials) |> collect;
+mkpath("results")
 
-function fit_model(model_class)
-    pmap(grouped_trials) do (wid, trials)
-        wid => fit_model(model_class, trials)
-    end |> Dict
+# %% ==================== Define strategies ====================
+
+C = reshape(1:24, 4, 6)  # matrix of cell numbers
+STRATEGIES = [:rand, :wadd, :ttb, :sat_ttb, :unknown]
+
+function classify(t::Trial)
+    # no clicking => rand
+    length(t.uncovered) == 0 && return :rand
+    # full clicking => wadd
+    length(t.uncovered) == length(C) && return :wadd
+    
+    # click whole maximal weight row => ttb
+    ttb_row = argmax(t.weights)
+    Set(t.uncovered) == Set(C[ttb_row, :]) && return :ttb
+    
+    # click subest of maximal weight row AND last revealed is unique maximum => sat_ttb
+    Set(t.uncovered) < Set(C[ttb_row, :]) && 
+        argmax(t.values[t.uncovered]) == length(t.uncovered) && return :sat_ttb
+
+    return :unknown
 end
 
-models = [Optimal, MetaGreedy]
-fits = asyncmap(models) do model
-    model => fit_model(model)
-end |> Dict
-serialize("$results_path/fits", fits)
-# %% ====================  ====================
-trials = grouped_trials[1][2]
-data = get_data(trials)
-fit_error_model(Optimal(6.), data)
+# %% ==================== Descriptive statistics ====================
+
+term_reward(t::Trial) = term_reward(get_data(t)[end].b)
+
+# %% ==================== Classify and apply descriptive statistics  ====================
+
+# one row for each trial
+T = map(all_trials) do t
+    (
+        sigma = t.sigma, alpha=t.alpha, cost=t.cost, t=t,
+        strategy = classify(t), 
+        n_revealed = length(t.uncovered),
+        term_reward = term_reward(t),
+    ) 
+end |> DataFrame
+
+combine(groupby(T, [:sigma, :cost]), :n_revealed => mean) |> sort
 
 
+# %% ==================== Strategy frequencies ====================
 
-# %% ====================  ====================
-
-pdf = CSV.read("../data/processed/$version/participants.csv");
-
-
-cost_map = map(eachrow(pdf)) do row
-    row.pid => row.cost
-end |> Dict
-
-# %% ====================  ====================
-g = group(fits[Optimal]) do (wid, fit)
-    cost_map[wid]
-end;
-
-valmap(g) do fits
-    mean([fit[2].model.cost for fit in fits])
-end |> sort
-
-# %% ====================  ====================
-
-logps = valmap(fits) do pfits
-    length(pfits)
-    map(values(pfits)) do fit
-        fit.logp
-    end
+ivs = [:sigma, :alpha, :cost]
+# one row for each condition
+S = @as x T.strategy begin
+    x .== reshape(STRATEGIES, 1, :)
+    DataFrame(x, STRATEGIES)
+    hcat(T[ivs], x)
+    groupby(x, ivs)
+    combine(x, STRATEGIES .=> sum)
+    rename(col->replace(col, "_sum" => ""), x)
+    sort!
 end
-
-logps[Optimal] .- logps[MetaGreedy ]
-# %% ====================  ====================
-fits[MetaGreedy]
-
-# %% ====================  ====================
-valmap(group(x->x.cost, all_trials)) do trials
-    map(trials) do t
-        length(t.uncovered)
-    end |> mean
-end |> sort
+S[4:end] = S[4:end] ./ sum.(eachrow(S[4:end]))
+CSV.write("results/strategy_frequencies.csv", S)
 
 
+# %% ==================== Breakdowns ====================
 
+combine(S, STRATEGIES .=> mean)
+combine(groupby(S, :sigma), STRATEGIES .=> mean)
+combine(groupby(S, :alpha), STRATEGIES .=> mean)
+combine(groupby(S, :cost), STRATEGIES .=> mean)
