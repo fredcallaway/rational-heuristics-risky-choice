@@ -7,10 +7,13 @@ using Lazy: @as
 include("utils.jl")
 include("meta_mdp.jl")
 include("data.jl")
+mkpath("results")
 
 version = "1.0"
 all_trials = load_trials(version);
-mkpath("results")
+all_sims = mapreduce(vcat, 1:50) do i
+    deserialize("tmp/sims/$i")
+end
 
 # %% ==================== Define strategies ====================
 
@@ -34,44 +37,52 @@ function classify(t::Trial)
     return :unknown
 end
 
+
 # %% ==================== Descriptive statistics ====================
 
 term_reward(t::Trial) = term_reward(get_data(t)[end].b)
 
-# %% ==================== Classify and apply descriptive statistics  ====================
-
-# one row for each trial
-T = map(all_trials) do t
+function describe(t::Trial)
     (
-        sigma = t.sigma, alpha=t.alpha, cost=t.cost, t=t,
+        sigma=t.sigma, alpha=t.alpha, cost=t.cost, 
+        # t=t,
         strategy = classify(t), 
         n_revealed = length(t.uncovered),
         term_reward = term_reward(t),
     ) 
-end |> DataFrame
-
-combine(groupby(T, [:sigma, :cost]), :n_revealed => mean) |> sort
-
+end
 
 # %% ==================== Strategy frequencies ====================
+IVS = [:sigma, :alpha, :cost]
 
-ivs = [:sigma, :alpha, :cost]
-# one row for each condition
-S = @as x T.strategy begin
-    x .== reshape(STRATEGIES, 1, :)
-    DataFrame(x, STRATEGIES)
-    hcat(T[ivs], x)
-    groupby(x, ivs)
-    combine(x, STRATEGIES .=> sum)
-    rename(col->replace(col, "_sum" => ""), x)
-    sort!
+function strategy_frequency_by_condition(T::DataFrame)
+    S = @as x T.strategy begin
+        x .== reshape(STRATEGIES, 1, :)
+        DataFrame(x, STRATEGIES)
+        hcat(T[IVS], x)
+        groupby(x, IVS)
+        combine(x, STRATEGIES .=> sum)
+        rename(col->replace(col, "_sum" => ""), x)
+        sort!
+    end
+    S[4:end] = S[4:end] ./ sum.(eachrow(S[4:end]))
+    S
 end
-S[4:end] = S[4:end] ./ sum.(eachrow(S[4:end]))
-CSV.write("results/strategy_frequencies.csv", S)
+
+
+# %% ====================  ====================
+human = describe.(all_trials) |> DataFrame
+model = describe.(all_sims) |> DataFrame
+
+SH = strategy_frequency_by_condition(human)
+SM = strategy_frequency_by_condition(model)
+
+CSV.write("results/strategy_frequencies.csv", SH)
+CSV.write("results/strategy_frequencies_model.csv", SM)
 
 
 # %% ==================== Breakdowns ====================
-
+S = SH
 combine(S, STRATEGIES .=> mean)
 combine(groupby(S, :sigma), STRATEGIES .=> mean)
 combine(groupby(S, :alpha), STRATEGIES .=> mean)
