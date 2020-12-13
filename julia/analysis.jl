@@ -9,6 +9,7 @@ include("meta_mdp.jl")
 include("data.jl")
 mkpath("results")
 
+IVS = [:sigma, :alpha, :cost]
 version = "1.0"
 all_trials = load_trials(version);
 all_sims = mapreduce(vcat, 1:50) do i
@@ -52,8 +53,14 @@ function describe(t::Trial)
     ) 
 end
 
+human = describe.(all_trials) |> DataFrame
+model = describe.(all_sims) |> DataFrame
+
+groupmean(X, dvs) = combine(groupby(X, IVS), dvs .=> mean .=> dvs)
+groupmean(human, [:term_reward, :n_revealed]) |> CSV.write("results/reward_revealed.csv")
+groupmean(model, [:term_reward, :n_revealed]) |> CSV.write("results/reward_revealed_model.csv")
+
 # %% ==================== Strategy frequencies ====================
-IVS = [:sigma, :alpha, :cost]
 
 function strategy_frequency_by_condition(T::DataFrame)
     S = @as x T.strategy begin
@@ -69,10 +76,6 @@ function strategy_frequency_by_condition(T::DataFrame)
     S
 end
 
-
-# %% ====================  ====================
-human = describe.(all_trials) |> DataFrame
-model = describe.(all_sims) |> DataFrame
 
 SH = strategy_frequency_by_condition(human)
 SM = strategy_frequency_by_condition(model)
