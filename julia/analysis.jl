@@ -16,6 +16,15 @@ all_sims = mapreduce(vcat, 1:50) do i
     deserialize("tmp/sims/$i")
 end
 
+# %% --------
+length(all_sims)
+json(all_sims[1])
+t = all_sims[1]
+
+open("all_sims.json", "w") do f
+    JSON.print(f, all_sims)
+end
+
 # %% ==================== Define strategies ====================
 
 C = reshape(1:24, 4, 6)  # matrix of cell numbers

@@ -1,2 +1,5 @@
 data/human
 data/human_raw
+julia/tmp/
+julia/tmp.zip
+julia/all_sims.json
