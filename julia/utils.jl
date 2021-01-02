@@ -2,6 +2,13 @@ using SplitApplyCombine
 using Serialization
 flatten = SplitApplyCombine.flatten
 
+function cache(f, file)
+    isfile(file) && return deserialize(file)
+    result = f()
+    serialize(file, result)
+    result
+end
+
 # ---------- Printing stuff ---------- #
 
 using Printf

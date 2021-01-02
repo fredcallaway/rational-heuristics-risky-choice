@@ -1,6 +1,7 @@
 using Serialization
 using CSV
 using Distributed
+using ProgressMeter
 
 @everywhere begin
     include("meta_mdp.jl")
@@ -11,28 +12,40 @@ using Distributed
 end
 mkpath("tmp/policies")
 
-# define MetaMDP for each condition
+@everywhere id(m::MetaMDP) = join([round(m.weight_dist.alpha[1]; digits=3), m.reward_dist.σ, m.cost], "-")
+
+# %% ==================== setup ====================
+
 version = "1.0"
-pdf = CSV.File("../data/processed/$version/participants.csv");
-conditions = pdf |> map(x -> (alpha=x.alpha, sigma=x.sigma, cost=x.cost)) |> unique
-all_mdps = map(conditions) do cond
+costs = 0:1:25
+participants = CSV.File("../data/processed/$version/participants.csv");
+alphas = participants |> map(x -> x.alpha) |> unique
+sigmas = participants |> map(x -> x.sigma) |> unique
+
+all_mdps = map(Iterators.product(alphas, sigmas, costs)) do (alpha, sigma, cost)
     MetaMDP(
-        reward_dist=Normal(0, cond.sigma),
-        weight_dist=Dirichlet(ones(4) .* cond.alpha),
-        cost=cond.cost
+        reward_dist=Normal(0, sigma),
+        weight_dist=Dirichlet(ones(4) .* alpha),
+        cost=cost
     )
 end |> collect;
+
+
+# %% ==================== policy optimization ====================
 
 # set parameters for bayesian optimization
 @everywhere opt_kws = (seed=1, n_iter=500, n_roll=10000, α=100)
 serialize("tmp/opt_kws", opt_kws)
 
 # optimize!
-@time pmap(enumerate(all_mdps)) do (i, m)
-    policy = optimize_bmps(m; opt_kws..., verbose=false)
-    serialize("tmp/policies/$i", policy)
-    policy
+mkpath("tmp/policies")
+policies = @showprogress pmap(all_mdps) do m
+    cache("tmp/policies/" * id(m)) do
+        optimize_bmps(m; opt_kws..., verbose=false)
+    end
 end
+
+# %% ==================== simulation ====================
 
 @everywhere function simulate(pol::Policy)::Trial
     s = State(pol.m)
@@ -55,11 +68,74 @@ end
 
 # simulate!
 mkpath("tmp/sims")
-@time pmap(eachindex(all_mdps)) do i
-    pol = deserialize("tmp/policies/$i")
-    sims = map(1:100000) do i
-        simulate(pol)
+all_sims = @showprogress pmap(policies) do pol
+    cache("tmp/sims/" * id(pol.m)) do 
+        map(1:100000) do i
+            simulate(pol)
+        end
     end
-    serialize("tmp/sims/$i", sims)
 end;
+
+# all_sims = @showprogress map(all_mdps) do m
+#     deserialize("tmp/sims/" * id(m))
+# end
+
+# %% ==================== find best cost ====================
+dictionary = SplitApplyCombine.dictionary
+
+condition(t::Trial) = map(float, (t.sigma, t.alpha, t.cost))
+condition(m::MetaMDP) = (m.reward_dist.σ, m.weight_dist.alpha[1], m.cost)
+
+all_trials = load_trials(version);
+human = map(group(condition, all_trials)) do trials
+    # length(trials)
+    mean(length(t.uncovered) for t in trials)
+end
+
+grouped_sims = map(all_mdps, all_sims) do m, trials
+    condition(m) => trials
+end |> dictionary
+
+model = map(grouped_sims) do trials
+    mean(length(t.uncovered) for t in trials)
+end
+
+candidates = 0:(maximum(costs) - 8)
+loss = map(candidates) do implicit_cost
+    map(pairs(human)) do ((sigma, alpha, cost), h)
+        m = model[(sigma, alpha, cost + implicit_cost)]
+        # (h - m) ^ 2
+        # abs(h - m)
+        h - m
+    end |> sum |> abs
+end
+best_implicit_cost = candidates[argmin(loss)]
+
+mkpath("results/sims")
+foreach(keys(human)) do (sigma, alpha, cost)
+    sims = grouped_sims[(sigma, alpha, cost + best_implicit_cost)][1:10000]
+    name = join([sigma, alpha, cost], "-")
+    serialize("results/sims/$name.json", sims)
+end
+
+# %% ==================== compute voc (in progress) ====================
+
+
+# mkpath("tmp/vocs")
+
+
+
+# pmap() do (i, cost)
+#     vocs, time_ = @timed map(data) do d
+#         pol = policies[d.t.sigma, d.t.alpha, cost]
+#         b = mutate(d.b, m=pol.m)
+#         voc(pol, b)
+#     end
+#     serialize("$results_path/vocs/$i", (
+#         cost=cost,
+#         vocs=vocs
+#     ))
+# end
+
+
 

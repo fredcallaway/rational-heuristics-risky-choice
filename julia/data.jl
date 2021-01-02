@@ -42,8 +42,8 @@ end
 
 
 @memoize function load_trials(version)
-    df = CSV.read("../data/processed/$version/trials.csv");
-    df = filter(df) do row
+    df = DataFrame!(CSV.File("../data/processed/$version/trials.csv"));
+    filter!(df) do row
         row.block == "test"
     end
     map(Trial, eachrow(df))
