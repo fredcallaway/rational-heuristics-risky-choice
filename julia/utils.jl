@@ -32,6 +32,12 @@ nanstd(x) = nanreduce(std, x)
 Base.dropdims(idx::Int...) = X -> dropdims(X, dims=idx)
 Base.reshape(idx::Union{Int,Colon}...) = x -> reshape(x, idx...)
 
+
+function Base.argmin(f::Function, x)
+    fx = map(f, x)
+    x[argmin(fx)]
+end
+
 # ---------- Type stuff ---------- #
 dictkeys(d::Dict) = (collect(keys(d))...,)
 dictvalues(d::Dict) = (collect(values(d))...,)

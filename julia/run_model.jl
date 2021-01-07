@@ -17,10 +17,13 @@ mkpath("tmp/policies")
 # %% ==================== setup ====================
 
 version = "1.0"
-costs = 0:1:25
+implicit_costs = [0:0.1:3; 4:17]
+
 participants = CSV.File("../data/processed/$version/participants.csv");
-alphas = participants |> map(x -> x.alpha) |> unique
-sigmas = participants |> map(x -> x.sigma) |> unique
+alphas = participants |> map(x -> x.alpha) |> unique |> sort
+sigmas = participants |> map(x -> x.sigma) |> unique |> sort
+explicit_costs = participants |> map(x -> x.cost) |> unique |> sort
+costs = map(sum, Iterators.product(explicit_costs, implicit_costs)) |> unique |> sort
 
 all_mdps = map(Iterators.product(alphas, sigmas, costs)) do (alpha, sigma, cost)
     MetaMDP(
@@ -30,18 +33,22 @@ all_mdps = map(Iterators.product(alphas, sigmas, costs)) do (alpha, sigma, cost)
     )
 end |> collect;
 
-
 # %% ==================== policy optimization ====================
 
 # set parameters for bayesian optimization
 @everywhere opt_kws = (seed=1, n_iter=500, n_roll=10000, α=100)
 serialize("tmp/opt_kws", opt_kws)
 
-# optimize!
+# optimize! (this takes a frustratingly long time because of a bug in the optimizer)
 mkpath("tmp/policies")
-policies = @showprogress pmap(all_mdps) do m
-    cache("tmp/policies/" * id(m)) do
-        optimize_bmps(m; opt_kws..., verbose=false)
+policies = @showprogress pmap(all_mdps; retry_delays=zeros(100)) do m
+    try
+        cache("tmp/policies/" * id(m)) do
+            optimize_bmps(m; opt_kws..., verbose=false)
+        end
+    catch err
+        @error "Optimization error!" err id(m)
+        rethrow()
     end
 end
 
@@ -58,7 +65,8 @@ end
         0,  # trial_index
         pol.m.reward_dist.σ,  # sigma
         pol.m.weight_dist.alpha[1],  # alpha
-        pol.m.cost,  # cost
+        # pol.m.cost,  # cost
+        0,
         s.weights,  # weights
         s.matrix ./ s.weights,  # values
         uncovered,  # uncovered
@@ -100,8 +108,9 @@ model = map(grouped_sims) do trials
     mean(length(t.uncovered) for t in trials)
 end
 
-candidates = 0:(maximum(costs) - 8)
-loss = map(candidates) do implicit_cost
+# %% --------
+
+best_implicit_cost = argmin(implicit_costs) do implicit_cost
     map(pairs(human)) do ((sigma, alpha, cost), h)
         m = model[(sigma, alpha, cost + implicit_cost)]
         # (h - m) ^ 2
@@ -109,14 +118,43 @@ loss = map(candidates) do implicit_cost
         h - m
     end |> sum |> abs
 end
-best_implicit_cost = candidates[argmin(loss)]
 
-mkpath("results/sims")
-foreach(keys(human)) do (sigma, alpha, cost)
-    sims = grouped_sims[(sigma, alpha, cost + best_implicit_cost)][1:10000]
-    name = join([sigma, alpha, cost], "-")
-    serialize("results/sims/$name.json", sims)
+# %% --------
+
+map(pairs(human)) do ((sigma, alpha, cost), h)
+    argmin(implicit_costs) do implicit_cost
+        m = model[(sigma, alpha, cost + implicit_cost)]
+        # (h - m) ^ 2
+        # abs(h - m)
+        abs(h - m)
+    end
 end
+
+# %% --------
+
+best_by_cost = map(explicit_costs) do cost
+    argmin(implicit_costs) do implicit_cost
+        loss = map(pairs(human)) do ((sigma, alpha, cost2), h)
+            cost != cost2 && return 0.
+            m = model[(sigma, alpha, cost + implicit_cost)]
+            h - m
+        end |> sum |> abs
+    end
+end
+
+# %% --------
+best_implicit_cost = best_by_cost[1]
+mkpath("results/sims/$best_implicit_cost")
+@showprogress for (sigma, alpha, cost) in keys(human)
+    sims = grouped_sims[(sigma, alpha, cost + best_implicit_cost)][1:10000]
+    sims = map(sims) do t
+        mutate(t, cost=cost)
+    end
+    name = join([sigma, alpha, cost], "-")
+    write("results/sims/$best_implicit_cost/$name.json", JSON.json(sims))
+end
+
+
 
 # %% ==================== compute voc (in progress) ====================
 
