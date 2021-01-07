@@ -74,19 +74,22 @@ end
     )
 end
 
-# simulate!
-mkpath("tmp/sims")
-all_sims = @showprogress pmap(policies) do pol
-    cache("tmp/sims/" * id(pol.m)) do 
-        map(1:100000) do i
-            simulate(pol)
-        end
-    end
-end;
 
-# all_sims = @showprogress map(all_mdps) do m
-#     deserialize("tmp/sims/" * id(m))
-# end
+# first write those that aren't computed
+mkpath("tmp/sims")
+@showprogress pmap(policies) do pol
+    isfile("tmp/sims/" * id(pol.m)) && return 0
+    sims = map(1:100000) do i
+        simulate(pol)
+    end
+    serialize("tmp/sims/" * id(pol.m), sims)
+    return 1
+end
+
+# then load them all (two steps because data transfer contributes substantially to runtime)
+all_sims = @showprogress map(policies) do pol
+    deserialize("tmp/sims/" * id(pol.m))
+end;
 
 # %% ==================== find best cost ====================
 dictionary = SplitApplyCombine.dictionary
@@ -153,6 +156,21 @@ mkpath("results/sims/$best_implicit_cost")
     name = join([sigma, alpha, cost], "-")
     write("results/sims/$best_implicit_cost/$name.json", JSON.json(sims))
 end
+
+# %% ==================== implicit cost vs reward ====================
+
+
+cost_vs_reward = @showprogress map(Iterators.product(keys(human), implicit_costs)) do ((sigma, alpha, cost), implicit_cost)
+    sims = grouped_sims[(sigma, alpha, cost+implicit_cost)]
+    payoff, clicks = length(sims) \ mapreduce(+, sims) do t
+        [(t.weights' * t.values)[t.choice], length(t.uncovered)]
+    end
+    net_payoff = payoff - clicks * cost
+    (;sigma, alpha, cost, implicit_cost, payoff, clicks, net_payoff)
+end
+# %% --------
+DataFrame(cost_vs_reward[:]) |> CSV.write("results/implicit_cost_summary.csv")
+
 
 
 
