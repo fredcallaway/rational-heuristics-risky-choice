@@ -43,7 +43,7 @@ function gp_minimize(f::Function, d::Int; kernel=Mat32Ard(zeros(d), 5.), verbose
             "   ", round(elapsed; digits=1), " seconds",
             " with ", nprocs(), " processes"
         )
-        fx
+        fx/100
     end
 
     if optimize_every <= 0

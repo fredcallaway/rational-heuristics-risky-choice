@@ -65,6 +65,7 @@ end
 human = describe.(all_trials) |> DataFrame
 model = describe.(all_sims) |> DataFrame
 
+# %% --------
 groupmean(X, dvs) = combine(groupby(X, IVS), dvs .=> mean .=> dvs)
 groupmean(human, [:term_reward, :n_revealed]) |> CSV.write("results/reward_revealed.csv")
 groupmean(model, [:term_reward, :n_revealed]) |> CSV.write("results/reward_revealed_model.csv")
