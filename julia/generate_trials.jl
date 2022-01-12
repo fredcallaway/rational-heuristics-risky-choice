@@ -106,29 +106,4 @@ trial_data = map(enumerate(αs)) do (i, α)
 end;
 
 
-# %% ====================  ====================
-using SplitApplyCombine
-map(trial_data) do td
-    map(td.standard) do t
-        t.id
-    end
-end
-
-# %% ====================  ====================
-
-Trial = typeof(standard[1])
-function State(m::MetaMDP, t::Trial)
-    w = t.probabilities
-    X = t.payoff_matrix'
-    State(m, w .* X, w )
-end
-
-
-# %% ====================  ====================
-
-
-s = State(m, standard[1])
-standard[1]
-
-
 

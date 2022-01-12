@@ -159,65 +159,6 @@ mkpath("results/sims/human_trials_fitcost")
 end;
 
 
-# %% --------
-
-map(pairs(human)) do ((sigma, alpha, cost), h)
-    argmin(implicit_costs) do implicit_cost
-        m = model[(sigma, alpha, cost + implicit_cost)]
-        # (h - m) ^ 2
-        # abs(h - m)
-        abs(h - m)
-    end
-end
-
-# %% --------
-
-best_by_cost = map(explicit_costs) do cost
-    argmin(implicit_costs) do implicit_cost
-        loss = map(pairs(human)) do ((sigma, alpha, cost2), h)
-            cost != cost2 && return 0.
-            m = model[(sigma, alpha, cost + implicit_cost)]
-            h - m
-        end |> sum |> abs
-    end
-end
-
-# %% --------
-
-function fit_subset(selector)
-    # h = avg_clicks(selector, human)
-    argmin(implicit_costs) do implicit_cost
-        loss = map(pairs(human)) do ((sigma, alpha, cost), h)
-            selector((sigma, alpha, cost)) || return 0
-            m = model[(sigma, alpha, cost + implicit_cost)]
-            h = human[(sigma, alpha, cost)]
-            h - m
-        end |> sum |> abs
-    end
-end
-cost_present(cond) = cond[3] > 0
-
-
-best_by_present = Dict(
-    true => fit_subset(cost_present),
-    false => fit_subset(!cost_present),
-)
-
-get_implicit_cost(cond) = best_by_present[cost_present(cond)]
-
-# %% --------
-best_implicit_cost = best_by_cost[1]
-mkpath("results/sims/zero_nonzero")
-@showprogress for (sigma, alpha, cost) in keys(human)
-    sims = grouped_sims[(sigma, alpha, cost + get_implicit_cost((sigma, alpha, cost)))][1:10000]
-    sims = map(sims) do t
-        mutate(t, cost=cost)
-    end
-    name = join([sigma, alpha, cost], "-")
-    write("results/sims/zero_nonzero/$name.json", JSON.json(sims))
-end
-
-
 # %% ==================== individual fit ====================
 
 trials = group(x->x.pid, all_trials) |> first
@@ -267,28 +208,3 @@ cost_vs_reward = @showprogress map(Iterators.product(keys(human), implicit_costs
 end
 # %% --------
 DataFrame(cost_vs_reward[:]) |> CSV.write("results/implicit_cost_summary.csv")
-
-
-
-
-# %% ==================== compute voc (in progress) ====================
-
-
-# mkpath("tmp/vocs")
-
-
-
-# pmap() do (i, cost)
-#     vocs, time_ = @timed map(data) do d
-#         pol = policies[d.t.sigma, d.t.alpha, cost]
-#         b = mutate(d.b, m=pol.m)
-#         voc(pol, b)
-#     end
-#     serialize("$results_path/vocs/$i", (
-#         cost=cost,
-#         vocs=vocs
-#     ))
-# end
-
-
-
