@@ -92,6 +92,10 @@ all_sims = @showprogress map(policies) do pol
     deserialize("tmp/sims/" * id(pol.m))
 end;
 
+open("../data/model/all_sims.json", "w") do f
+    JSON.print(f, all_sims)
+end
+
 # %% =================== cost fitting ====================
 
 dictionary = SplitApplyCombine.dictionary
