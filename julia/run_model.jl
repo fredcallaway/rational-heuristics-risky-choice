@@ -19,7 +19,7 @@ mkpath("tmp/policies")
 version = "1.0"
 implicit_costs = [0:0.1:3; 4:17]
 
-participants = CSV.File("../data/processed/$version/participants.csv");
+participants = CSV.File("../data/human/$version/participants.csv");
 alphas = participants |> map(x -> x.alpha) |> unique |> sort
 sigmas = participants |> map(x -> x.sigma) |> unique |> sort
 explicit_costs = participants |> map(x -> x.cost) |> unique |> sort
@@ -126,8 +126,8 @@ end
 
 # %% ==================== simulate human trials ====================
 
-mkpath("results/sims/human_trials")
-trials = CSV.read("../data/processed/$version/trials.csv", DataFrame);
+mkpath("../data/model/human_trials")
+trials = CSV.read("../data/human/$version/trials.csv", DataFrame);
 filter!(trials) do row
     row.block == "test"
 end
@@ -140,12 +140,12 @@ pol_lookup = Dict(pol.m => pol for pol in policies)
         simulate(pol_lookup[s.m], s).uncovered
     end
     res = (;t.problem_id, t.sigma, t.alpha, t.cost, t.probabilities, t.payoff_matrix, uncovered)
-    write("results/sims/human_trials/$(t.problem_id)-$(t.cost).json", JSON.json(res))
+    write("../data/model/human_trials/$(t.problem_id)-$(t.cost).json", JSON.json(res))
 end;
 
 # %% --------
 
-mkpath("results/sims/human_trials_fitcost")
+mkpath("../data/model/human_trials_fitcost")
 
 @showprogress pmap(eachrow(trials)) do t
     s = State(Trial(t))
@@ -155,56 +155,5 @@ mkpath("results/sims/human_trials_fitcost")
         simulate(pol_lookup[m], mutate(s; m)).uncovered
     end
     res = (;t.problem_id, t.sigma, t.alpha, t.cost, t.probabilities, t.payoff_matrix, uncovered)
-    write("results/sims/human_trials_fitcost/$(t.problem_id)-$(t.cost).json", JSON.json(res))
+    write("../data/model/human_trials_fitcost/$(t.problem_id)-$(t.cost).json", JSON.json(res))
 end;
-
-
-# %% ==================== individual fit ====================
-
-trials = group(x->x.pid, all_trials) |> first
-
-ind_sims = @showprogress map(group(x->x.pid, all_trials)) do trials
-    t = trials[1]
-    best_cost = argmin(implicit_costs) do implicit_cost
-        m = model[(t.sigma, t.alpha, t.cost + implicit_cost)]
-        h = mean(length(t.uncovered) for t in trials)
-        abs(h - m)
-    end
-    sims = rand(grouped_sims[(t.sigma, t.alpha, t.cost + best_cost)], 200)
-    map(sims) do s
-        mutate(s; t.cost, trials[1].pid)
-    end
-end
-
-flatten(ind_sims) |> JSON.json |> write("results/sims/individual.json")
-
-# %% --------
-
-res = @showprogress map(group(x->x.pid, all_trials)) do trials
-    t = trials[1]
-    implicit_cost = argmin(implicit_costs) do implicit_cost
-        m = model[(t.sigma, t.alpha, t.cost + implicit_cost)]
-        h = mean(length(t.uncovered) for t in trials)
-        abs(h - m)
-    end
-    sigma, alpha, cost = condition(t)
-    (;trials[1].pid, sigma, alpha, cost, implicit_cost)
-end 
-
-res |> values |> collect |> DataFrame |> CSV.write("results/implicit_costs.csv")
-
-
-
-# %% ==================== implicit cost vs reward ====================
-
-
-cost_vs_reward = @showprogress map(Iterators.product(keys(human), implicit_costs)) do ((sigma, alpha, cost), implicit_cost)
-    sims = grouped_sims[(sigma, alpha, cost+implicit_cost)]
-    payoff, clicks = length(sims) \ mapreduce(+, sims) do t
-        [(t.weights' * t.values)[t.choice], length(t.uncovered)]
-    end
-    net_payoff = payoff - clicks * cost
-    (;sigma, alpha, cost, implicit_cost, payoff, clicks, net_payoff)
-end
-# %% --------
-DataFrame(cost_vs_reward[:]) |> CSV.write("results/implicit_cost_summary.csv")

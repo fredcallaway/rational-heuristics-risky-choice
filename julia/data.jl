@@ -40,15 +40,13 @@ function Trial(row::DataFrameRow)
     )
 end
 
-
 @memoize function load_trials(version)
-    df = DataFrame!(CSV.File("../data/processed/$version/trials.csv"));
+    df = DataFrame!(CSV.File("../data/human/$version/trials.csv"));
     filter!(df) do row
         row.block == "test"
     end
     map(Trial, eachrow(df))
 end
-
 
 struct Datum
     t::Trial
@@ -57,7 +55,6 @@ struct Datum
     # c_last::Union{Int, Nothing}
 end
 Base.hash(d::Datum, h::UInt64) = hash(d.c, hash(d.t, h))
-
 
 function MetaMDP(t::Trial, cost::Real)
     no, ng = size(t.values)
@@ -86,4 +83,3 @@ function get_data(t::Trial)
 end
 
 get_data(trials::Vector{Trial}) = flatten(map(get_data, trials))
-
