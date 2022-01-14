@@ -2,7 +2,9 @@ import numpy as np
 import pandas as pd
 import pdb
 from scipy.stats import sem
-
+import ast
+import os
+import multiprocessing
 
 
 def get_click_mat(C, clicks):
@@ -45,8 +47,6 @@ def get_payoffs(weights, reward_matrix, choice, clicks, cost, EV_subjective, pay
 
 
 def append_features(df, isHuman=False):
-
-	import ast
 
 	if isHuman:
 		C = np.arange(24).reshape((4, 6))
@@ -203,10 +203,6 @@ def append_features(df, isHuman=False):
 
 
 def process_data(isHuman=True, in_file='', out_dir='', two_groups=False):
-
-	import ast
-	import os
-	import multiprocessing
 	
 	if isHuman:
 		trials = pd.read_csv(in_file)
