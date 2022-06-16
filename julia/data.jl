@@ -41,7 +41,7 @@ function Trial(row::DataFrameRow)
 end
 
 @memoize function load_trials(version)
-    df = DataFrame!(CSV.File("../data/human/$version/trials.csv"));
+    df = DataFrame(CSV.File("../data/human/$version/trials.csv"));
     filter!(df) do row
         row.block == "test"
     end

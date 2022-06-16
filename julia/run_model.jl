@@ -16,13 +16,15 @@ mkpath("tmp/policies")
 
 # %% ==================== setup ====================
 
-version = "1.0"
+# version = "1.0"
+version = "2.3"
 implicit_costs = [0:0.1:3; 4:17]
 
-participants = CSV.File("../data/human/$version/participants.csv");
-alphas = participants |> map(x -> x.alpha) |> unique |> sort
-sigmas = participants |> map(x -> x.sigma) |> unique |> sort
-explicit_costs = participants |> map(x -> x.cost) |> unique |> sort
+participants = CSV.read("../data/human/$version/participants.csv", DataFrame);
+
+alphas = participants.alpha |>  unique |> sort
+sigmas = participants.sigma |> unique |> sort
+explicit_costs = participants.cost |> unique |> sort
 costs = map(sum, Iterators.product(explicit_costs, implicit_costs)) |> unique |> sort
 
 all_mdps = map(Iterators.product(alphas, sigmas, costs)) do (alpha, sigma, cost)
@@ -88,7 +90,7 @@ mkpath("tmp/sims")
 end
 
 # then load them all (two steps because data transfer contributes substantially to runtime)
-all_sims = @showprogress map(policies) do pol
+all_sims = @showprogress asyncmap(policies) do pol
     deserialize("tmp/sims/" * id(pol.m))
 end;
 
@@ -96,68 +98,79 @@ open("../data/model/all_sims.json", "w") do f
     JSON.print(f, all_sims)
 end
 
-# %% =================== cost fitting ====================
+# %% ==================== cost fitting ====================
 
 dictionary = SplitApplyCombine.dictionary
-
 condition(t::Trial) = map(float, (t.sigma, t.alpha, t.cost))
 condition(m::MetaMDP) = (m.reward_dist.σ, m.weight_dist.alpha[1], m.cost)
-
-all_trials = load_trials(version);
-human = map(group(condition, all_trials)) do trials
-    # length(trials)
-    mean(length(t.uncovered) for t in trials)
-end
 
 grouped_sims = map(all_mdps, all_sims) do m, trials
     condition(m) => trials
 end |> dictionary
 
-model = map(grouped_sims) do trials
+nclick_model = map(grouped_sims) do trials
     mean(length(t.uncovered) for t in trials)
 end
 
-# %% --------
+function fit_implicit_cost(trial_data)
+    all_trials = map(Trial, eachrow(trial_data))
+    nclick_human = map(group(condition, all_trials)) do trials
+        mean(length(t.uncovered) for t in trials)
+    end
 
-best_implicit_cost = argmin(implicit_costs) do implicit_cost
-    map(pairs(human)) do ((sigma, alpha, cost), h)
-        m = model[(sigma, alpha, cost + implicit_cost)]
-        # (h - m) ^ 2
-        # abs(h - m)
-        h - m
-    end |> sum |> abs
+    argmin(implicit_costs) do implicit_cost
+        map(pairs(nclick_human)) do ((sigma, alpha, cost), h)
+            m = nclick_model[(sigma, alpha, cost + implicit_cost)]
+            # (h - m) ^ 2
+            # abs(h - m)
+            h - m
+        end |> sum |> abs
+    end
 end
 
 # %% ==================== simulate human trials ====================
 
-mkpath("../data/model/human_trials")
-trials = CSV.read("../data/human/$version/trials.csv", DataFrame);
-filter!(trials) do row
-    row.block == "test"
+using DataFramesMeta
+trial_data = @chain "../data/human/$version/trials.csv" begin
+    CSV.read(DataFrame)
+    @rsubset :block == "test"
+    @rtransform :n_click = Int(:click_cost / :cost)
 end
-unique!(trials, [:cost, :sigma, :alpha, :problem_id])
-pol_lookup = Dict(pol.m => pol for pol in policies)
-
-@showprogress pmap(eachrow(trials)) do t
-    s = State(Trial(t))
-    uncovered = map(1:1000) do i
-        simulate(pol_lookup[s.m], s).uncovered
-    end
-    res = (;t.problem_id, t.sigma, t.alpha, t.cost, t.probabilities, t.payoff_matrix, uncovered)
-    write("../data/model/human_trials/$(t.problem_id)-$(t.cost).json", JSON.json(res))
-end;
+trial_data = @chain trial_data begin
+    groupby(:pid)
+    @combine :is_random = mean(:n_click .== 0) > 0.5
+    rightjoin(trial_data, on=:pid)
+end
 
 # %% --------
 
-mkpath("../data/model/human_trials_fitcost")
-
-@showprogress pmap(eachrow(trials)) do t
-    s = State(Trial(t))
-    uncovered = map(1:1000) do i
-        m = mutate(s.m, cost=s.m.cost + best_implicit_cost)
-        pol_lookup[m]
-        simulate(pol_lookup[m], mutate(s; m)).uncovered
+function write_simulation(path, trials; fit_cost=false, repeats=1000)
+    mkpath(path)
+    pol_lookup = Dict(pol.m => pol for pol in policies)
+    to_sim = eachrow(unique(trials, [:cost, :sigma, :alpha, :problem_id]))
+    
+    implicit_cost = fit_cost ? fit_implicit_cost(trials) : 0.
+    @info "Simulating" implicit_cost path nrow(trials)
+    @showprogress pmap(to_sim) do t
+        s = State(Trial(t))
+        m = mutate(s.m, cost=s.m.cost + implicit_cost)
+        pol = pol_lookup[m]
+        uncovered = map(1:repeats) do i
+            simulate(pol, mutate(s; m)).uncovered
+        end
+        res = (;t.problem_id, t.sigma, t.alpha, t.cost, t.probabilities, t.payoff_matrix, uncovered)
+        write("$path/$(t.problem_id)-$(t.cost).json", JSON.json(res))
     end
-    res = (;t.problem_id, t.sigma, t.alpha, t.cost, t.probabilities, t.payoff_matrix, uncovered)
-    write("../data/model/human_trials_fitcost/$(t.problem_id)-$(t.cost).json", JSON.json(res))
-end;
+end
+
+for (key, td) in pairs(groupby(trial_data, :display_ev))
+    cond = key.display_ev ? "exp" : "con"
+    base = "../data/model/human_trials_exp2_$cond"
+
+    write_simulation(base, td)
+    write_simulation("$(base)_fitcost", td; fit_cost=true)
+
+    excl_td = @rsubset(td, !:is_random)
+    write_simulation("$(base)_fitcost_exclude", excl_td; fit_cost=true)
+    write_simulation("$(base)_exclude", excl_td; fit_cost=false)
+end
