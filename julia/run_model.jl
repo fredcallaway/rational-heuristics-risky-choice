@@ -2,6 +2,8 @@ using Serialization
 using CSV
 using Distributed
 using ProgressMeter
+using DataFramesMeta
+
 
 @everywhere begin
     include("meta_mdp.jl")
@@ -19,6 +21,9 @@ mkpath("tmp/policies")
 # version = "1.0"
 version = "2.3"
 implicit_costs = [0:0.1:3; 4:17]
+if startswith(version, "2")
+    implicit_costs = -3:0.1:3
+end
 
 participants = CSV.read("../data/human/$version/participants.csv", DataFrame);
 
@@ -47,7 +52,7 @@ policies = @showprogress pmap(all_mdps; retry_delays=zeros(100)) do m
 #policies = @showprogress pmap(all_mdps; retry_delays=zeros(100)) do m
     try
         cache("tmp/policies/" * id(m)) do
-            error("Policy not found")  # should already be computed
+            # error("Policy not found")  # should already be computed
             optimize_bmps(m; opt_kws..., verbose=false)
         end
     catch err
@@ -130,7 +135,6 @@ end
 
 # %% ==================== simulate human trials ====================
 
-using DataFramesMeta
 trial_data = @chain "../data/human/$version/trials.csv" begin
     CSV.read(DataFrame)
     @rsubset :block == "test"
