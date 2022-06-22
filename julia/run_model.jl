@@ -19,7 +19,6 @@ mkpath("tmp/policies")
 # %% ==================== setup ====================
 
 version = isempty(ARGS) ? "1.0" : ARGS[1]
-version = "2.3"
 implicit_costs = [0:0.1:3; 4:17]
 experiment = startswith(version, "2") ? 2 : 1
 if experiment == 2
@@ -116,7 +115,7 @@ function compute_model_nclick(trial_data)
     @showprogress "compute nclick " pmap(jobs) do (trial, implicit_cost)
         k = trial.sigma, trial.cost, trial.problem_id, implicit_cost
         s = State(Trial(trial))
-        n_click = mapreduce(length, +, simulate(s; implicit_cost, N=1000)) / 1000
+        n_click = mapreduce(length, +, simulate(s; implicit_cost, N=10_000)) / 10_000
         k => n_click
     end
 end

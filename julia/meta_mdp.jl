@@ -130,10 +130,19 @@ struct RandomPolicy <: Policy
 end
 (pol::RandomPolicy)(b::Belief) = rand([0; unobserved(b)])
 
+
+function Base.isapprox(m1::MetaMDP, m2::MetaMDP)
+    m1.n_gamble == m2.n_gamble &&
+    m1.n_outcome == m2.n_outcome &&
+    m1.reward_dist ≈ m2.reward_dist &&
+    m1.weight_dist ≈ m2.weight_dist &&
+    m1.cost ≈ m2.cost
+end
+
 "Runs a Policy on a State."
 function rollout(π::Policy, s::State=State(π.m), b::Belief=Belief(s); max_steps=100, callback=((b, c) -> nothing))
     # @assert s.weights ≈ get_weights(b)
-    @assert π.m == b.m
+    @assert π.m ≈ b.m
     reward = 0
     for step in 1:max_steps
         c = (step == max_steps) ? ⊥ : π(b)
