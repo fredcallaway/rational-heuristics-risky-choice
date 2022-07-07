@@ -19,7 +19,6 @@ mkpath("tmp/policies")
 # %% ==================== setup ====================
 
 version = isempty(ARGS) ? "1.0" : ARGS[1]
-version = "2.3"
 implicit_costs = [0:0.1:3; 4:17]
 experiment = startswith(version, "2") ? 2 : 1
 if experiment == 2
@@ -88,6 +87,21 @@ trial_data = @chain trial_data begin
     rightjoin(trial_data, on=:pid)
 end
 
+if experiment == 2
+    bad_pids = @chain "
+       1  17  30  33  35  47  60  64 119 127 132 171 186 187 197 199 200 202
+     208 228 250 252 263 265 266 271 299 300 307 329 348 353 356 374 377 380
+     381 417 438 454 458 469 482 485 510 515 521 526 562 563 569 580 606 611
+       4  32  43  69  89  92  97 104 105 114 121 136 138 155 190 231 235 241
+     242 245 247 269 272 283 297 309 313 321 327 347 375 382 396 406 413 426
+     446 450 455 459 507 528 533 536 537 552 560 570 574 582 583 584 594 595
+     609 610
+    " strip split(r"[\n ]+") parse.(Int, _)
+
+    trial_data = @rtransform(trial_data, :low_performance = :pid in bad_pids)
+end
+
+
 # %% ==================== simulation ====================
 
 @everywhere function simulate(pol::Policy, s::State)
@@ -116,7 +130,7 @@ function compute_model_nclick(trial_data)
     @showprogress "compute nclick " pmap(jobs) do (trial, implicit_cost)
         k = trial.sigma, trial.cost, trial.problem_id, implicit_cost
         s = State(Trial(trial))
-        n_click = mapreduce(length, +, simulate(s; implicit_cost, N=1000)) / 1000
+        n_click = mapreduce(length, +, simulate(s; implicit_cost, N=10_000)) / 10_000
         k => n_click
     end
 end
@@ -135,6 +149,7 @@ function fit_implicit_cost(trial_data)
         abs(model - human)
     end
 end
+
 
 # %% ==================== simulate human trials ====================
 
@@ -163,6 +178,7 @@ function write_simulation(path, trials; fit_cost=false, N=1000)
     nothing
 end
 
+
 if experiment == 1
     base = "../data/model/exp1"
     write_simulation(base, trial_data)
@@ -179,5 +195,10 @@ else @assert experiment == 2
         write_simulation("$(base)_$(cond)_fitcost", td; fit_cost=true)
         excl_td = @rsubset(td, !:is_random)
         write_simulation("$(base)_$(cond)_fitcost_exclude", excl_td; fit_cost=true)
+        
+        excl_td = @rsubset(td, !:low_performance)
+        write_simulation("$(base)_$(cond)_fitcost_exclude_alt", excl_td; fit_cost=true)
+
+
     end
 end
