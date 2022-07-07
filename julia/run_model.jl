@@ -89,13 +89,16 @@ end
 
 if experiment == 2
     bad_pids = @chain "
-       1  17  30  33  35  47  60  64 119 127 132 171 186 187 197 199 200 202
-     208 228 250 252 263 265 266 271 299 300 307 329 348 353 356 374 377 380
-     381 417 438 454 458 469 482 485 510 515 521 526 562 563 569 580 606 611
-       4  32  43  69  89  92  97 104 105 114 121 136 138 155 190 231 235 241
-     242 245 247 269 272 283 297 309 313 321 327 347 375 382 396 406 413 426
-     446 450 455 459 507 528 533 536 537 552 560 570 574 582 583 584 594 595
-     609 610
+        1  17  30  33  35  60  79 109 110 119 127 132 171
+        176 186 188 197 199 202 208 212 228 236 250 252 263
+        265 266 288 298 300 315 348 353 356 374 381 395 417
+        425 482 485 510 516 526 529 563 567 569 580 587 589
+        590 606
+        2   4   5  26  57  69  86  92  96  97 104 105 114
+        136 145 155 158 165 190 231 235 241 242 245 247 283
+        308 313 318 324 327 347 375 382 387 396 406 412 413
+        442 455 478 499 507 527 528 536 537 560 570 574 583
+        584 595 599 610
     " strip split(r"[\n ]+") parse.(Int, _)
 
     trial_data = @rtransform(trial_data, :low_performance = :pid in bad_pids)
@@ -188,17 +191,15 @@ if experiment == 1
 
 else @assert experiment == 2
     base = "../data/model/exp2"
-    write_simulation(base, trial_data)
+    # write_simulation(base, trial_data)
 
     for (key, td) in pairs(groupby(trial_data, :display_ev))
         cond = key.display_ev ? "exp" : "con"
-        write_simulation("$(base)_$(cond)_fitcost", td; fit_cost=true)
+        # write_simulation("$(base)_$(cond)_fitcost", td; fit_cost=true)
         excl_td = @rsubset(td, !:is_random)
-        write_simulation("$(base)_$(cond)_fitcost_exclude", excl_td; fit_cost=true)
+        # write_simulation("$(base)_$(cond)_fitcost_exclude", excl_td; fit_cost=true)
         
         excl_td = @rsubset(td, !:low_performance)
         write_simulation("$(base)_$(cond)_fitcost_exclude_alt", excl_td; fit_cost=true)
-
-
     end
 end
