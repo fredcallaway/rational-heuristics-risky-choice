@@ -1,1 +1,1 @@
-$0\&1, 4\&8$
+\begin{tabular}{@{}c@{}}all pairs except\\$1 \& 2$, $2 \& 4$\end{tabular}

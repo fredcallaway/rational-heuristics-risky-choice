@@ -11,13 +11,15 @@ import warnings
 import pickle
 
 
-def append_features(in_file, isHuman=False):
+
+def append_features(in_file, isHuman=False, max_EV_by_condition=None):
 
 	if isHuman:
 		dat = pd.read_csv(in_file)
 		dat = dat[dat['block']=='test']
+		dat.loc[:,'alpha'] = dat['alpha'].round(decimals=1)
 		dat = dat.to_dict('records')
-		click_location_map = np.arange(24).reshape((4, 6))
+		click_location_map = np.arange(24).reshape((4,6))
 		same_col_idx = [np.arange(i,24,6) for i in range(6)]
 		same_row_idx = [np.arange(i,i+6) for i in range(0,24,6)]
 	else:
@@ -32,11 +34,17 @@ def append_features(in_file, isHuman=False):
 			mat += (c==click_location_map)
 		return mat
 
+	if not max_EV_by_condition:
+		filepath = '../data/human/1.0/processed/max_EV_by_condition.pkl' if 'exp1' in in_file else ''
+		filepath = '../data/human/2.3/processed/max_EV_by_condition.pkl' if 'exp2' in in_file else filepath
+		max_EV_by_condition = pd.read_pickle(filepath)
+
 	if not(isHuman):
-		cost, alpha, sigma = dat['cost'], dat['alpha'], dat['sigma']
+		cost, alpha, sigma = dat['cost'], np.round(dat['alpha'],decimals=1), dat['sigma']
 		probabilities = eval(dat['probabilities'])
 		payoff_matrix = eval(dat['payoff_matrix'])
 		problem_id = dat['problem_id']
+		payoff_perfect = max_EV_by_condition[str((dat['sigma'],dat['alpha']))]
 		dat = dat['uncovered']
 
 	out = defaultdict(list)
@@ -50,6 +58,7 @@ def append_features(in_file, isHuman=False):
 			clicks = eval(trial['clicks'])
 			choice = trial['choice_index']
 			payoff_idx = trial['payoff_index']
+			payoff_perfect = max_EV_by_condition[str((trial['sigma'],trial['alpha']))] # use condition average (not max(EVs_perfect) for each trial)
 		else:
 			clicks = [c-1 for c in trial]
 			payoff_idx = np.random.choice(np.arange(len(probabilities)), p=probabilities)
@@ -81,15 +90,15 @@ def append_features(in_file, isHuman=False):
 		EVs = np.matmul(probabilities, payoff_matrix*click_mat)
 		EVs_perfect = np.matmul(probabilities, payoff_matrix)
 		best_choice = np.argmax(EVs)
-		payoff_perfect = max(EVs_perfect)
 		assert(payoff_perfect>0)
 		if isHuman:
 			if use_EV_payoff:
 				if strategy == 'Rand':
-					# payoff_gross, payoff_gross_relative_bestBet, payoff_net_relative_bestBet = 0, 0, 0
-					# payoff_gross_bestBet = 0
-					payoff_gross, payoff_gross_relative_bestBet, payoff_net_relative_bestBet = np.mean(EVs_perfect), np.mean(EVs_perfect)/payoff_perfect, np.mean(EVs_perfect)/payoff_perfect
-					payoff_gross_bestBet = np.mean(EVs_perfect)
+					# payoff_gross = 0 # for making trial-wise model comparisons, better to use actual mean than 0
+					payoff_gross = np.mean(EVs_perfect)
+					payoff_gross_relative_bestBet = payoff_gross / payoff_perfect
+					payoff_net_relative_bestBet = payoff_gross / payoff_perfect
+					payoff_gross_bestBet = payoff_gross
 				else:
 					payoff_gross = EVs_perfect[choice]
 					payoff_gross_relative_bestBet = EVs_perfect[best_choice] / payoff_perfect
@@ -112,7 +121,6 @@ def append_features(in_file, isHuman=False):
 
 		type1_transitions = sum([1 for col in same_col_idx for c in range(nr_clicks-1) if (clicks[c] in col) and (clicks[c+1] in col)])
 		type2_transitions = sum([1 for row in same_row_idx for c in range(nr_clicks-1) if (clicks[c] in row) and (clicks[c+1] in row)])
-
 		processing_pattern = np.divide((type1_transitions-type2_transitions), (type1_transitions+type2_transitions))
 		click_var_gamble = np.var(np.divide(np.sum(click_mat, axis=0), nr_clicks))
 		click_var_outcome = np.var(np.divide(np.sum(click_mat, axis=1), nr_clicks))
@@ -130,17 +138,16 @@ def append_features(in_file, isHuman=False):
 			out['choice'].append(choice)
 			out['best_choice'].append(best_choice)
 			out['bad_choice'].append(bad_choice)
+			out['payoff_gross_relative_bestBet'].append(payoff_gross_relative_bestBet)
+			out['payoff_net_relative_bestBet'].append(payoff_net_relative_bestBet)
+			out['payoff_gross_bestBet'].append(payoff_gross_bestBet)
+			out['payoff_net_bestBet'].append(payoff_gross_bestBet - nr_clicks * cost)
 		out['nr_clicks'].append(nr_clicks)
 		out['payoff_gross'].append(payoff_gross)
 		out['payoff_net'].append(payoff_net)
 		out['payoff_gross_relative'].append(payoff_gross_relative)
 		out['payoff_net_relative'].append(payoff_net_relative)
 		out['payoff_perfect'].append(payoff_perfect)
-		if isHuman:
-			out['payoff_gross_relative_bestBet'].append(payoff_gross_relative_bestBet)
-			out['payoff_net_relative_bestBet'].append(payoff_net_relative_bestBet)
-			out['payoff_gross_bestBet'].append(payoff_gross_bestBet)
-			out['payoff_net_bestBet'].append(payoff_gross_bestBet - nr_clicks * cost)
 		out['processing_pattern'].append(processing_pattern)
 		out['click_var_gamble'].append(click_var_gamble)
 		out['click_var_outcome'].append(click_var_outcome)
@@ -183,16 +190,33 @@ def append_R_features(df):
 		df['R_'+s] = (df[s] - df[s].mean()) / df[s].std(ddof=0)
 
 	df['R_sigma'] = df['sigma']
-	for i, s in df['sigma'].sort_values().unique():
+	for i, s in enumerate(df['sigma'].sort_values().unique()):
 		df.loc[df['R_sigma']==s, 'R_sigma'] = i
 
 	df['R_alpha'] = df['alpha']
-	for i, a in np.flip(df['alpha'].sort_values().unique()):
+	for i, a in enumerate(np.flip(df['alpha'].sort_values().unique())):
 		df.loc[df['R_alpha']==s, 'R_alpha'] = i
 
 	df['R_cost'] = df['cost']
 
 	return df
+
+def save_max_EV_by_condition(human_file, out_dir):
+	df = pd.read_csv(human_file)
+	df = df[df['block']=='test']
+	df.loc[:,'alpha'] = df['alpha'].round(decimals=1)
+	df = df.set_index(['sigma','alpha'])
+	max_EV_by_condition = {}
+	for idx in df.index.sort_values().unique():
+	    probabilities = df.loc[idx,'probabilities'].apply(literal_eval).values.tolist()
+	    payoff_matrices = df.loc[idx,'payoff_matrix'].apply(literal_eval).values.tolist()   
+	    max_EV_by_condition[str(idx)] = np.mean([max(np.matmul(p,r)) for p, r in zip(probabilities, payoff_matrices)])
+
+	pickle.dump(max_EV_by_condition, open(os.path.join(out_dir,'max_EV_by_condition.pkl'),'wb'))
+
+	print('saved '+os.path.join(out_dir,'max_EV_by_condition.pkl'))
+
+	return max_EV_by_condition
 
 def process_raw_data(in_dir_or_file, isHuman=False):
 
@@ -202,7 +226,8 @@ def process_raw_data(in_dir_or_file, isHuman=False):
 		warnings.simplefilter("ignore", category=RuntimeWarning)
 		two_groups = False
 		if isHuman:
-			trials = append_features(in_dir_or_file, isHuman=True)
+			max_EV_by_condition = save_max_EV_by_condition(in_dir_or_file, out_dir)
+			trials = append_features(in_dir_or_file, True, max_EV_by_condition)
 			trials = append_R_features(trials)
 			if 'display_ev' in trials.columns:
 				two_groups = True
@@ -260,15 +285,12 @@ def append_model_trial_weight_from_human_frequencies(model_file, human_file, exc
 			sig_str = ''
 
 		for exclude in exclude_participants:
-			# exc_str = '_exclude' if exclude and len(exclude_participants)==2 else ''
 			exc_str = '_exclude' if exclude else ''
 
-			if exclude:
-				df_human = remove_rand_participants(df_human)
+			df_human = exclude_bad_participants(df_human, exclude)
 			if experiment2:
 				df_human_group2 = pd.read_csv(human_group2_file)
-				if exclude:
-					df_human_group2 = remove_rand_participants(df_human_group2)
+				df_human_group2 = exclude_bad_participants(df_human_group2, 2)
 
 			if not experiment2:
 				c1, c2, c3 = df_model['problem_id'].values, df_model['cost'].values, df_model['sigma'].values
@@ -303,6 +325,102 @@ def append_model_trial_weight_from_human_frequencies(model_file, human_file, exc
 
 	df_model.to_csv(model_file, index=False)
 	print('appended model trial_weights from human trial frequencies to '+model_file)
+
+def append_model_payoff(model_file, human_file):
+
+	df1 = pd.read_csv(model_file)
+	df2 = pd.read_csv(human_file)
+
+	df1['alpha'] = df1['alpha'].round(decimals=1)
+	df2['alpha'] = df2['alpha'].round(decimals=1)
+
+	df1_ = df1.set_index(['problem_id','sigma','alpha','cost'])
+	df2_ = df2.set_index(['problem_id','sigma','alpha','cost'])
+
+	df2['payoff_gross_modelDiff'] = ''
+	df2['payoff_net_modelDiff'] = ''
+	df2['payoff_gross_relative_modelDiff'] = ''
+	df2['payoff_net_relative_modelDiff'] = ''
+
+	for i, trial_type in enumerate(df2_.index):
+		model_dat = df1_.xs(trial_type)
+		df2['payoff_gross_modelDiff'].iloc[i] = model_dat['payoff_gross']
+		df2['payoff_net_modelDiff'].iloc[i] = model_dat['payoff_net']
+		df2['payoff_gross_relative_modelDiff'].iloc[i] = model_dat['payoff_gross_relative']
+		df2['payoff_net_relative_modelDiff'].iloc[i] = model_dat['payoff_net_relative']
+	df2['payoff_gross_modelDiff'] = df2['payoff_gross'] - df2['payoff_gross_modelDiff'].astype(float)
+	df2['payoff_net_modelDiff'] = df2['payoff_net'] - df2['payoff_net_modelDiff'].astype(float)
+	df2['payoff_gross_relative_modelDiff'] = df2['payoff_gross_relative'] - df2['payoff_gross_relative_modelDiff'].astype(float)
+	df2['payoff_net_relative_modelDiff'] = df2['payoff_net_relative'] - df2['payoff_net_relative_modelDiff'].astype(float)	
+
+	df2.to_csv(human_file, index=False)
+	print('appended \'payoff_*_modelDiff\' performance measures to '+human_file)
+
+def append_sources_of_under_performance(model_file, human_file, model_file_fitcost, exclude_participants=False):
+
+	df1 = pd.read_csv(model_file)
+	df2_orig = pd.read_csv(human_file)
+	df2 = exclude_bad_participants(df2_orig, exclude_participants)
+	df1_fitcost = pd.read_csv(model_file_fitcost)
+	exclude_str = '' if not exclude_participants else '_exclude'
+	exp2_str = '_con' if 'trials_con' in human_file else '' # when comparing the model to one group from exp2, use trials weights specific to that group
+	exp2_str = '_exp' if 'trials_exp' in human_file else exp2_str
+
+	perf_metric = 'payoff_net'
+	strategies = ['TTB_SAT','SAT_TTB','TTB','WADD','Rand','Other'] # must be in this order, based on process_data.append_features()
+
+	df1_fitcost['alpha'] = df1_fitcost['alpha'].round(decimals=1) # use fitcost to control for implicit costs
+	df2['alpha'] = df2['alpha'].round(decimals=1)
+	df1_ = df1_fitcost.set_index(['problem_id','sigma','alpha','cost'])
+	df2_ = df2.set_index(['problem_id','sigma','alpha','cost'])
+	trial_counts = np.zeros((len(strategies),len(strategies)))
+	suboptimal_performance = np.zeros((len(strategies),len(strategies)))
+	for i, trial_type in enumerate(df2_.index): #.unique():
+		model_dat = df1_.xs(trial_type)
+		human_dat = df2_.iloc[i]
+		model_strat_freq = np.array([model_dat[s] for s in strategies])
+		human_strat_idx = [x for x,s in enumerate(strategies) if human_dat[s]][0]
+		model_performance_by_strategy = eval(model_dat[perf_metric+'_by_strategy'])
+		human_performance = human_dat[perf_metric+'_bestBet'] # use bestBet to control for suboptimal information use
+		trial_counts[:,human_strat_idx] += model_strat_freq
+		suboptimal_performance[:,human_strat_idx] += model_strat_freq * (model_performance_by_strategy - human_performance)
+	suboptimal_performance /= np.sum(suboptimal_performance)
+
+	out = {}
+	out['trial_counts'] = trial_counts
+	out['model_performance'] = np.mean(df1[perf_metric] * df1['trial_weight'+exp2_str+exclude_str])
+	out['human_performance'] = np.mean(df2[perf_metric])
+	out['human_performance_pct'] = 100 * out['human_performance'] / out['model_performance']
+	out['peformance_gap_abs'] = out['model_performance'] - out['human_performance']
+	out['peformance_gap_pct'] = 100 - out['human_performance_pct']
+	assert(np.isclose(100*out['peformance_gap_abs']/out['model_performance'], out['peformance_gap_pct']))
+	implicit_cost_diff = (out['model_performance'] - np.mean(df1_fitcost[perf_metric] * df1_fitcost['trial_weight']))
+	out['implicit_costs'] =  implicit_cost_diff / out['model_performance'] # / out['peformance_gap_abs']
+	out['implicit_costs_model_fraction'] =  implicit_cost_diff / out['model_performance']
+	out['imperfect_info_use'] = (np.mean(df2[perf_metric+'_bestBet']) - out['human_performance']) / out['model_performance'] # / out['peformance_gap_abs']
+	out['imperfect_strat_selec_and_exec'] = 1 - out['implicit_costs'] - out['imperfect_info_use'] - out['human_performance_pct']/100 # 1 - out['implicit_costs'] - out['imperfect_info_use']
+	out['imperfect_strat_selec_and_exec_by_strat'] = suboptimal_performance * out['imperfect_strat_selec_and_exec']
+	out['imperfect_strat_selec'] = np.sum((-np.eye(6)+1)*out['imperfect_strat_selec_and_exec_by_strat'])
+	out['imperfect_strat_exec'] = np.sum(np.eye(6)*out['imperfect_strat_selec_and_exec_by_strat'])
+	out['imperfect_strat_selec_by_strat'] = np.sum((-np.eye(6)+1)*out['imperfect_strat_selec_and_exec_by_strat'], axis=0)
+	out['imperfect_strat_exec_by_strat'] = np.sum(np.eye(6)*out['imperfect_strat_selec_and_exec_by_strat'], axis=0)
+
+	out['nr_clicks_dif'] = np.mean(df1['nr_clicks']*df1['trial_weight'+exp2_str+exclude_str]) - df2['nr_clicks'].mean()
+	out['peformance_gap_points'] = np.mean(df1['payoff_gross'] * df1['trial_weight'+exp2_str+exclude_str]) - df2['payoff_gross'].mean()
+	out['peformance_gap_gross_abs'] = np.mean(df1['payoff_gross_relative'] * df1['trial_weight'+exp2_str+exclude_str]) - df2['payoff_gross_relative'].mean()
+	out['peformance_gap_gross_pct'] = 100 - 100 * df2['payoff_gross_relative'].mean() / np.mean(df1['payoff_gross_relative'] * df1['trial_weight'+exp2_str+exclude_str])
+
+	imperfect_info_use_idx = df2['choice'] != df2['best_choice']
+	out['imperfect_info_use_points_lost'] = df2[imperfect_info_use_idx]['payoff_gross_bestBet'].mean() - df2[imperfect_info_use_idx]['payoff_gross'].mean()
+
+	for k in out.keys():
+		if isinstance(out[k], np.ndarray):
+			out[k] = out[k].tolist()
+	df2_orig['under_performance'+exclude_str] = ''
+	df2_orig['under_performance'+exclude_str].iloc[0] = [out]
+
+	df2_orig.to_csv(human_file, index=False)
+	print('appended sources of under-performance in column \'under_performance'+exclude_str+'\' to '+human_file)
 
 def append_kmeans(in_file, k, sim_trials_per_human_trial=None, label_cols=False):
 	# label_cols is for testing many differnt values of k
@@ -362,80 +480,9 @@ def append_kmeans(in_file, k, sim_trials_per_human_trial=None, label_cols=False)
 	if not label_cols:
 		pickle_dict['cluster_centers'] = df['cluster_centers'].iloc[0]
 		pickle_dict['labels'] = kmeans.labels_
-		# don't save 
 		pickle.dump(pickle_dict, open(os.path.splitext(in_file)[0]+'_click_embeddings.pkl','wb'))
 	df.to_csv(in_file, index=False)
 	print('appended k='+str(k)+' k-means cluster centers and strategy labels to '+in_file)
-
-def append_sources_of_under_performance(model_file, human_file, model_file_fitcost, exclude_participants=False):
-
-	df1 = pd.read_csv(model_file)
-	df2_orig = pd.read_csv(human_file)
-	if exclude_participants:
-		df2 = remove_rand_participants(df2_orig)
-	else:
-		df2 = df2_orig
-	df1_fitcost = pd.read_csv(model_file_fitcost)
-	exclude_str = '' if not exclude_participants else '_exclude'
-	exp2_str = '_con' if 'trials_con' in human_file else '' # when comparing the model to one group from exp2, use trials weights specific to that group
-	exp2_str = '_exp' if 'trials_exp' in human_file else exp2_str
-
-	perf_metrics = ['payoff_net_relative','payoff_gross_relative','payoff_net','payoff_gross']
-	perf_metric = perf_metrics[0]
-	strategies = ['TTB_SAT','SAT_TTB','TTB','WADD','Rand','Other'] # must be in this order, based on process_data.append_features()
-
-	df1_fitcost['alpha'] = df1_fitcost['alpha'].round(decimals=1) # use fitcost to control for implicit costs
-	df2['alpha'] = df2['alpha'].round(decimals=1)
-	df1_ = df1_fitcost.set_index(['problem_id','sigma','alpha','cost'])
-	df2_ = df2.set_index(['problem_id','sigma','alpha','cost'])
-	trial_counts = np.zeros((len(strategies),len(strategies)))
-	suboptimal_performance = np.zeros((len(strategies),len(strategies)))
-	for i, trial_type in enumerate(df2_.index): #.unique():
-		model_dat = df1_.xs(trial_type)
-		human_dat = df2_.iloc[i]
-		model_strat_freq = np.array([model_dat[s] for s in strategies])
-		human_strat_idx = [x for x,s in enumerate(strategies) if human_dat[s]][0]
-		model_performance_by_strategy = eval(model_dat[perf_metric+'_by_strategy'])
-		human_performance = human_dat[perf_metric+'_bestBet'] # use bestBet to control for suboptimal information use
-		trial_counts[:,human_strat_idx] += model_strat_freq
-		suboptimal_performance[:,human_strat_idx] += model_strat_freq * (model_performance_by_strategy - human_performance)
-	suboptimal_performance /= np.sum(suboptimal_performance)
-
-	out = {}
-	out['trial_counts'] = trial_counts
-	out['model_performance'] = np.mean(df1['payoff_net_relative'] * df1['trial_weight'+exp2_str+exclude_str])
-	out['human_performance'] = np.mean(df2['payoff_net_relative'])
-	out['human_performance_pct'] = 100 * out['human_performance'] / out['model_performance']
-	out['peformance_gap_abs'] = out['model_performance'] - out['human_performance']
-	out['peformance_gap_pct'] = 100 - out['human_performance_pct']
-	assert(np.isclose(100*out['peformance_gap_abs']/out['model_performance'], out['peformance_gap_pct']))
-	implicit_cost_diff = (out['model_performance'] - np.mean(df1_fitcost['payoff_net_relative'] * df1_fitcost['trial_weight']))
-	out['implicit_costs'] =  implicit_cost_diff / out['model_performance'] # / out['peformance_gap_abs']
-	out['implicit_costs_model_fraction'] =  implicit_cost_diff / out['model_performance']
-	out['imperfect_info_use'] = (np.mean(df2['payoff_net_relative_bestBet']) - out['human_performance']) / out['model_performance'] # / out['peformance_gap_abs']
-	out['imperfect_strat_selec_and_exec'] = 1 - out['implicit_costs'] - out['imperfect_info_use'] - out['human_performance_pct']/100 # 1 - out['implicit_costs'] - out['imperfect_info_use']
-	out['imperfect_strat_selec_and_exec_by_strat'] = suboptimal_performance * out['imperfect_strat_selec_and_exec']
-	out['imperfect_strat_selec'] = np.sum((-np.eye(6)+1)*out['imperfect_strat_selec_and_exec_by_strat'])
-	out['imperfect_strat_exec'] = np.sum(np.eye(6)*out['imperfect_strat_selec_and_exec_by_strat'])
-	out['imperfect_strat_selec_by_strat'] = np.sum((-np.eye(6)+1)*out['imperfect_strat_selec_and_exec_by_strat'], axis=0)
-	out['imperfect_strat_exec_by_strat'] = np.sum(np.eye(6)*out['imperfect_strat_selec_and_exec_by_strat'], axis=0)
-
-	out['nr_clicks_dif'] = np.mean(df1['nr_clicks']*df1['trial_weight'+exp2_str+exclude_str]) - df2['nr_clicks'].mean()
-	out['peformance_gap_points'] = np.mean(df1['payoff_gross'] * df1['trial_weight'+exp2_str+exclude_str]) - df2['payoff_gross'].mean()
-	out['peformance_gap_gross_abs'] = np.mean(df1['payoff_gross_relative'] * df1['trial_weight'+exp2_str+exclude_str]) - df2['payoff_gross_relative'].mean()
-	out['peformance_gap_gross_pct'] = 100 - 100 * df2['payoff_gross_relative'].mean() / np.mean(df1['payoff_gross_relative'] * df1['trial_weight'+exp2_str+exclude_str])
-
-	imperfect_info_use_idx = df2['choice'] != df2['best_choice']
-	out['imperfect_info_use_points_lost'] = df2[imperfect_info_use_idx]['payoff_gross_bestBet'].mean() - df2[imperfect_info_use_idx]['payoff_gross'].mean()
-
-	for k in out.keys():
-		if isinstance(out[k], np.ndarray):
-			out[k] = out[k].tolist()
-	df2_orig['under_performance'+exclude_str] = ''
-	df2_orig['under_performance'+exclude_str].iloc[0] = [out]
-
-	df2_orig.to_csv(human_file, index=False)
-	print('appended sources of under-performance in column \'under_performance'+exclude_str+'\' to '+human_file)
 
 def run_process_data(which_experiment='both', process_human=True, run_kmeans=True, process_model=True):
 
@@ -485,17 +532,20 @@ def run_process_data(which_experiment='both', process_human=True, run_kmeans=Tru
 		human_file_raw = '../data/human/2.3/trials.csv'
 		human_file_con = os.path.join(os.path.dirname(human_file_raw), 'processed/trials_con.csv')
 		human_file_exp = os.path.join(os.path.dirname(human_file_raw), 'processed/trials_exp.csv')
-		model_dirs = ['../data/model/exp2'+sfx for sfx in ['','_con_fitcost','_exp_fitcost']]
-		exclude_participants = [[False,True], [False], [False]]
+		model_dirs = ['../data/model/exp2'+sfx for sfx in ['','_con_fitcost_exclude_alt','_exp_fitcost_exclude_alt']]
+		exclude_participants = [[False,2], [2], [2]]
 		
 		if process_human:
 			process_raw_data(human_file_raw, isHuman=True)
 			print_special(f'finished preprocessing experiment 2 human data from {human_file_raw} ({time.time()-t0:.1f} sec)')
 			model_file = os.path.join(model_dirs[0], 'processed/trials.csv')
+			append_model_payoff(model_file, human_file_con)
+			append_model_payoff(model_file, human_file_exp)
 			model_file_fitcost = os.path.join(model_dirs[1], 'processed/trials.csv')
-			append_sources_of_under_performance(model_file, human_file_con, model_file_fitcost, exclude_participants=False)
+			append_sources_of_under_performance(model_file, human_file_con, model_file_fitcost, exclude_participants=2)
 			model_file_fitcost = os.path.join(model_dirs[2], 'processed/trials.csv')
-			append_sources_of_under_performance(model_file, human_file_exp, model_file_fitcost, exclude_participants=False)
+			append_sources_of_under_performance(model_file, human_file_exp, model_file_fitcost, exclude_participants=2)
+
 
 		if process_model:
 			for model_dir, exclude in zip(model_dirs, exclude_participants):
@@ -529,110 +579,39 @@ def cohen_d(x,y):
 	pooled_std = np.sqrt(((nx-1)*np.std(x, ddof=1) ** 2 + (ny-1)*np.std(y, ddof=1) ** 2) / dof)
 	return (np.mean(x) - np.mean(y)) / pooled_std
 
-def append_model_payoff_net(model_file, human_file):
-
-	df1 = pd.read_csv(model_file)
-	df2 = pd.read_csv(human_file)
-
-	df1['alpha'] = df1['alpha'].round(decimals=1)
-	df2['alpha'] = df2['alpha'].round(decimals=1)
-
-	df1_ = df1.set_index(['problem_id','sigma','alpha','cost'])
-	df2_ = df2.set_index(['problem_id','sigma','alpha','cost'])
-
-	df2['payoff_net_relative_model'] = ''
-	df2['payoff_net_model'] = ''
-	df2['payoff_gross_relative_model'] = ''
-	df2['payoff_gross_model'] = ''
-	for i, trial_type in enumerate(df2_.index):
-		model_dat = df1_.xs(trial_type)
-		df2['payoff_net_relative_model'].iloc[i] = model_dat['payoff_net_relative']
-		df2['payoff_net_model'].iloc[i] = model_dat['payoff_net']
-		df2['payoff_gross_relative_model'].iloc[i] = model_dat['payoff_gross_relative']
-		df2['payoff_gross_model'].iloc[i] = model_dat['payoff_gross']
-	df2['payoff_net_relative_model'] = df2['payoff_net_relative_model'].astype(float)
-	df2['payoff_net_model'] = df2['payoff_net_model'].astype(float)
-	df2['payoff_gross_relative_model'] = df2['payoff_gross_relative_model'].astype(float)
-	df2['payoff_gross_model'] = df2['payoff_gross_model'].astype(float)
-
-	return df2
-
-
-def remove_rand_participants(df, n=None, cutoff=None, useBestBet=False):
-	import matplotlib.pyplot as plt
-	if useBestBet==True:
-		df['badTrial'] = (df['choice']!=df['best_choice']) | (df['Rand'])
-		mean_bad_bets_by_participants = df.groupby('pid').mean()['badTrial']
-	elif useBestBet=='payoff_gross_relative':
-		df['badTrial'] = -df['payoff_gross_relative']
-		mean_bad_bets_by_participants = df.groupby('pid').mean()['badTrial']
-	elif useBestBet=='payoff_net_relative':
-		df['badTrial'] = -df['payoff_net_relative']
-		mean_bad_bets_by_participants = df.groupby('pid').mean()['badTrial']
-	elif useBestBet=='payoff_gross':
-		df['badTrial'] = -df['payoff_gross']
-		mean_bad_bets_by_participants = df.groupby('pid').mean()['badTrial']
-	elif useBestBet=='payoff_net':
-		df['badTrial'] = -df['payoff_net']
-		mean_bad_bets_by_participants = df.groupby('pid').mean()['badTrial']
-	elif useBestBet=='payoff_net_relative_model':
-		df['badTrial'] = (df['payoff_net_relative_model'] - df['payoff_net_relative']).astype(float)
-		mean_bad_bets_by_participants = df.groupby('pid').mean()['payoff_net_relative_model'] - df.groupby('pid').mean()['payoff_net_relative']
-	elif useBestBet=='payoff_net_model':
-		df['badTrial'] = (df['payoff_net_model'] - df['payoff_net']).astype(float)
-		mean_bad_bets_by_participants = df.groupby('pid').mean()['payoff_net_model'] - df.groupby('pid').mean()['payoff_net']
-	elif useBestBet=='payoff_gross_relative_model':
-		df['badTrial'] = (df['payoff_gross_relative_model'] - df['payoff_gross_relative']).astype(float)
-		mean_bad_bets_by_participants = df.groupby('pid').mean()['payoff_gross_relative_model'] - df.groupby('pid').mean()['payoff_gross_relative']
-	elif useBestBet=='payoff_gross_model':
-		df['badTrial'] = (df['payoff_gross_model'] - df['payoff_gross']).astype(float)
-		mean_bad_bets_by_participants = df.groupby('pid').mean()['payoff_gross_model'] - df.groupby('pid').mean()['payoff_gross']
+def exclude_bad_participants(df, exp=1, **kwargs):
+	if exp==False:
+		return df
+	elif exp==1 or exp==True: # experiment 1 defaults
+		criteria, cutoff, n = 'Rand', None, None
 	else:
-		df['badTrial'] = df['Rand']
-		mean_bad_bets_by_participants = df.groupby('pid').mean()['badTrial']
-	# mean_bad_bets_by_participants = df.groupby('pid').mean()['badTrial']
-	# df.drop('badTrial', axis=1, inplace=True)
-	if not n:
-		if not cutoff:
-			cutoff = 0.5
-		n = sum(mean_bad_bets_by_participants > cutoff)
-	else:
-		if type(n)==float:
-			n = round(n*len(mean_bad_bets_by_participants))
-		if not cutoff:
-			cutoff = mean_bad_bets_by_participants.sort_values().values[-n]
-			cutoffs = mean_bad_bets_by_participants.sort_values().unique()
-			# cutoff_idx = np.where(cutoffs == cutoff)[0][0]
-			# cutoffs = cutoffs[max(cutoff_idx-1,0):min(cutoff_idx+2,len(cutoffs))]
-			# print(n, [-abs(n-len(df)/20*np.mean(mean_bad_bets_by_participants > c)) for c in cutoffs], cutoffs)
-			cutoff = cutoffs[np.argmax([-abs(n-len(df)/20*np.mean(mean_bad_bets_by_participants > c)) for c in cutoffs])]
-			# print(cutoffs)
-	idx = mean_bad_bets_by_participants > cutoff
-	participants_to_exclude = mean_bad_bets_by_participants[idx].index
-	print(participants_to_exclude)
-	# pdb.set_trace()
-	# print(f'removed {sum(idx)} participants ({100*np.mean(idx):.1f}%) for current analysis ({100*cutoff:.1f}% cuttoff)')
-	# plt.hist(mean_bad_bets_by_participants, int(len(df)/20));plt.show()
-	pts_lost1 = df.payoff_gross_bestBet.mean() - df.payoff_gross.mean()
-	pts_lostToPerf1 = df.payoff_perfect.mean() - df.payoff_gross.mean()
-	pct_rand1 = 100*df.Rand.mean()
-	pct_randPart1 = 100*np.mean(df.groupby('pid').mean()['Rand'] > 0.5)
-	# pct_notBest1 = 100*np.mean(df['choice']!=df['best_choice'])
-	df['badChoice'] = df['choice']!=df['best_choice']
-	pct_bad1 = 100*df.badChoice.mean()
-	pct_badPart1 = 100*np.mean(df.groupby('pid').mean()['badChoice'] > 0.5)
+		criteria, cutoff, n = 'payoff_net_modelDiff', None, 0.27184466019417475 # fraction of exp2 control group participants with >50% random trials
+    if 'criteria' in kwargs: criteria = kwargs['criteria']
+    if 'cutoff' in kwargs: cutoff = kwargs['cutoff']
+    if 'n' in kwargs: n = kwargs['n']
 
-	df = df[~df['pid'].isin(participants_to_exclude)]
+	df['badTrial'] = df[criteria]
+	if criteria[:6] == 'payoff':
+		df['badTrial'] = -df['badTrial']
 
-	pts_lost2 = df.payoff_gross_bestBet.mean() - df.payoff_gross.mean()
-	pts_lostToPerf2 = df.payoff_perfect.mean() - df.payoff_gross.mean()
-	pct_rand2 = 100*df.Rand.mean()
-	pct_randPart2 = 100*np.mean(df.groupby('pid').mean()['Rand'] > 0.5)
-	# pct_notBest2 = 100*np.mean(df['choice']!=df['best_choice'])
-	pct_bad2 = 100*df.badChoice.mean()
-	pct_badPart2 = 100*np.mean(df.groupby('pid').mean()['badChoice'] > 0.5)
-	# print(f'before/after\npoints lost to bad bets: {pts_lost1:.2f}/{pts_lost2:.2f}\npoints lost to non-perfect best: {pts_lostToPerf1:.2f}/{pts_lostToPerf2:.2f}\nrandom bets: {pct_rand1:.1f}/{pct_rand2:.1f}% ({pct_randPart1:.1f}/{pct_randPart2:.1f}% participants)\nbad bets: {pct_bad1:.1f}/{pct_bad2:.1f}% ({pct_badPart1:.1f}/{pct_badPart2:.1f}% participants)')
-	return df
+	mean_bad_trials_by_participant = df[['pid','badTrial']].groupby('pid').mean()['badTrial']
+	df.drop(columns=['badTrial'], inplace=True)
+
+	if n and cutoff:
+		Exception('You can choose a number/fraction of participants to exclude, or a criteria cutoff value, but not both')
+	if n:
+		if type(n)==int:
+			n /= len(mean_bad_trials_by_participant) # make n fraction of participants to exclude
+		cutoffs = mean_bad_trials_by_participant.sort_values().unique()
+		cutoff = cutoffs[np.argmax([-abs(n - np.mean(mean_bad_trials_by_participant > c)) for c in cutoffs])]
+	elif not cutoff:
+		cutoff = 0.5
+	idx = mean_bad_trials_by_participant > cutoff
+	participants_to_exclude = mean_bad_trials_by_participant[idx].index
+
+	print(f'removed {sum(idx)} participants ({100*np.mean(idx):.1f}%) for current analysis (using {100*cutoff:.1f}% cuttoff for {criteria} trials)')
+
+	return df[~df['pid'].isin(participants_to_exclude)]
 
 def print_special(print_str, big=True):
 	if big:

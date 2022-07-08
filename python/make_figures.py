@@ -13,7 +13,7 @@ from ast import literal_eval
 import time
 from collections import defaultdict
 
-def centroids(model_file, human_file, fig_dir=None, save=False):
+def exp1_centroids(model_file, human_file, fig_dir=None, save=False):
 	from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 	df1 = pd.read_csv(model_file)
@@ -75,7 +75,7 @@ def centroids(model_file, human_file, fig_dir=None, save=False):
 	
 	plt.show()
 
-def strategies(model_file, human_file, fig_dir=None, save=False):
+def exp1_strategies(model_file, human_file, fig_dir=None, save=False):
 
 	df1 = pd.read_csv(model_file)
 	df2 = pd.read_csv(human_file)
@@ -183,7 +183,7 @@ def strategies(model_file, human_file, fig_dir=None, save=False):
 
 	plt.show()   
 
-def heatmaps(model_file, human_file, fig_dir=None, save=False):
+def exp1_heatmaps(model_file, human_file, fig_dir=None, save=False):
 
 	paramL = ['nr_clicks','TTB','SAT_TTB','click_var_outcome','payoff_gross_relative','payoff_gross_relative']
 	paramR = ['processing_pattern','WADD','TTB_SAT','click_var_gamble','payoff_gross_relative','payoff_gross_relative']
@@ -196,7 +196,7 @@ def heatmaps(model_file, human_file, fig_dir=None, save=False):
 		df1 = pd.read_csv(model_file)
 		df2 = pd.read_csv(human_file)
 		if exclude[p]:
-			df2 = p_d.remove_rand_participants(df2)
+			df2 = p_d.exclude_bad_participants(df2)
 			exclude_str = '_exclude'
 		else:
 			exclude_str = ''
@@ -334,25 +334,8 @@ def heatmaps(model_file, human_file, fig_dir=None, save=False):
 
 		plt.show()
 
-def condition_lines(model_file, human_file, fig_dir=None, save=False):
+def exp1_condition_lines(model_file, human_file, fig_dir=None, save=False):
 
-	# params = ['nr_clicks','processing_pattern',\
-	# 		'click_var_outcome','click_var_gamble',\
-	# 		'payoff_gross_relative','payoff_gross_relative',\
-	# 		'payoff_gross_relative','payoff_gross_relative',\
-	# 		'payoff_net_relative','payoff_net_relative',\
-	# 		'payoff_net_relative','payoff_net_relative']
-	# labels = ['Information Gathered','Alternative vs. Attribute',\
-	# 		'Attribute Variance','Alternative Variance',\
-	# 		'Relative Performance','w/ implicit cost',\
-	# 		'Relative Performance\n(Participants excluded)','w/ implicit cost',\
-	# 		'Net Relative Performance','w/ implicit cost',\
-	# 		'Net Relative Performance\n(Participants excluded)','w/ implicit cost']
-	# # fitcost_and_exclude = [False,False,False,False,False,True,False,True]
-	# fitcost = [False]*4 + [False,True]*4
-	# exclude = [False]*4 + ([False]*2 + [True]*2)*2
-	# ylims = [(2,16),(-1,-.3),(0,.2),(0,.06),(0,1.03),(0,1.03),(0,1.15),(0,1.15),(0,1.03),(0,1.03),(0,1.15),(0,1.15)]
-	# idxs = [[0,1],[2,3],[4,5],[6,7],[8,9],[10,11]]
 	params = ['nr_clicks','processing_pattern',\
 			'click_var_outcome','click_var_gamble',\
 			'payoff_gross_relative','payoff_gross_relative',\
@@ -361,8 +344,7 @@ def condition_lines(model_file, human_file, fig_dir=None, save=False):
 			'Attribute Variance','Alternative Variance',\
 			'Relative\nPerformance','Relative Performance\n(Participants excluded)',\
 			'Net Relative\nPerformance','Net Relative Performance\n(Participants excluded)']
-	# fitcost_and_exclude = [False,False,False,False,False,True,False,True]
-	# fitcost = [False]*4 + [False,True]*4
+
 	exclude = [False]*4 + [False,True]*2
 	ylims = [(2,16),(-1,-.3),(0,.2),(0,.06),(0,1.15),(0,1.15),(0,1.15),(0,1.15)]
 	idxs = [[0,1],[2,3],[4,5],[6,7]]
@@ -378,42 +360,15 @@ def condition_lines(model_file, human_file, fig_dir=None, save=False):
 		perf = []
 		for p_, p in enumerate(idx): # seperate rows of figure
 
-			# if fitcost[p] and exclude[p]:
-			# 	df1 = pd.read_csv(model_file.replace('exp1','exp1_fitcost_exclude'))
-			# elif fitcost[p]:
-			# 	df1 = pd.read_csv(model_file.replace('exp1','exp1_fitcost'))
-			# else:
-			# 	df1 = pd.read_csv(model_file)
-			# df2 = pd.read_csv(human_file)
-			# if exclude[p]:
-			# 	df2 = p_d.remove_rand_participants(df2)
-			# 	exclude_str = '_exclude'
-			# else:
-			# 	exclude_str = ''
-
 			df1 = pd.read_csv(model_file)
 			df2 = pd.read_csv(human_file)
 			if exclude[p]:
-				# df1_fitcost = pd.read_csv(model_file.replace('exp1','exp1_fitcost_exclude'))
-				# df1_fitcost[params[p]] = df1_fitcost[params[p]] * df1_fitcost['trial_weight'] # it's implied by the directory name that the weights are for excluded participants
 				df1[params[p]] = df1[params[p]] * df1['trial_weight_exclude']
-				df2 = p_d.remove_rand_participants(df2)
+				df2 = p_d.exclude_bad_participants(df2)
 				exclude_str = '_exclude'
 			else:
-				# df1_fitcost = pd.read_csv(model_file.replace('exp1','exp1_fitcost'))
-				# df1_fitcost[params[p]] = df1_fitcost[params[p]] * df1_fitcost['trial_weight_exclude']
 				df1[params[p]] = df1[params[p]] * df1['trial_weight']
 				exclude_str = ''
-
-			# if fitcost_and_exclude[p]:
-			# 	df1 = pd.read_csv(model_file.replace('exp1','exp1_fitcost_exclude'))
-			# 	df2 = pd.read_csv(human_file)
-			# 	df2 = p_d.remove_rand_participants(df2)
-			# else:
-			# 	df1 = pd.read_csv(model_file)
-			# 	df2 = pd.read_csv(human_file)
-			# trial_weight_str = 'trial_weight'+exclude_str if not (fitcost[p] and exclude[p]) else 'trial_weight' # it's not in the column name for exp1_fitcost_exclude, since it's implied in the firectory name
-			# df1[params[p]] = df1[params[p]] * df1[trial_weight_str]
 
 			plt.sca(plt.subplot(gs[3*p_]))
 			dat = df1.groupby('sigma')[params[p]].mean().values
@@ -466,7 +421,6 @@ def condition_lines(model_file, human_file, fig_dir=None, save=False):
 			else:
 				plt.tick_params(axis='both',which='both',left=False,labelleft=False,bottom=False,labelbottom=False)
 
-			# if big:
 			ax = plt.subplot(gs[3*p_+2])
 			box = ax.get_position()
 			ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
@@ -483,7 +437,7 @@ def condition_lines(model_file, human_file, fig_dir=None, save=False):
 
 		plt.show()
 
-def strategyVsKmeans_confusion_matrix(model_file, human_file, fig_dir=None, save=False):
+def strategyVsKmeans_confusion_matrix(model_file, human_file, fig_dir=None, save=False, exclude=False):
 	from statsmodels.stats.inter_rater import cohens_kappa
 
 	df1 = pd.read_csv(model_file)
@@ -498,6 +452,7 @@ def strategyVsKmeans_confusion_matrix(model_file, human_file, fig_dir=None, save
 	labels = [['TTB','WADD','SAT-TTB','SAT-TTB+','other'],
 			['TTB','WADD','SAT-TTB','SAT-TTB+','random','other']]
 
+	exclude_str = '' if not exclude else '_exclude'
 	for isHuman, df in enumerate([df1, df2]):
 		strats = strategies[isHuman]
 		strat_labels = labels[isHuman]
@@ -516,7 +471,10 @@ def strategyVsKmeans_confusion_matrix(model_file, human_file, fig_dir=None, save
 		for i, s in enumerate(strats):
 			idx = tmp['km_strategy'] == s
 			for j, s_ in enumerate(strats):
-				confusion_mat[i,j] = sum(tmp[idx]['strategy'] == s_)
+				if isHuman:
+					confusion_mat[i,j] = sum(tmp[idx]['strategy'] == s_)
+				else:
+					confusion_mat[i,j] = sum((tmp[idx]['strategy'] == s_) * (df[idx]['trial_weight'+exclude_str])) + sum((tmp[idx]['strategy'] != s_) * (1-df[idx]['trial_weight'+exclude_str]))
 		confusion_mat = confusion_mat[:-1,:]
 		pct = confusion_mat/sum(sum(confusion_mat))*100
 
@@ -550,7 +508,7 @@ def strategyVsKmeans_confusion_matrix(model_file, human_file, fig_dir=None, save
 				f.write(f'$\\kappa={r1:.{3}f}, 95\\% CI [{r2:.{3}f}, {r3:.{3}f}]$')
 		plt.show()
 
-def under_performance_pie(human_file1, human_file2, fig_dir=None, save=False):
+def under_performance_pie(human_file1, human_file2, fig_dir=None, save=False, exclude=False):
 
 	fontsize_ticks = 32
 	fontsize_labels = 42
@@ -564,7 +522,7 @@ def under_performance_pie(human_file1, human_file2, fig_dir=None, save=False):
 	for plot_ix, human_file in enumerate([human_file1, human_file2]):
 
 		exp2_str = human_file[-8:-4] if human_file[-8:-4]!='ials' else ''
-		if human_file == 'exclude':
+		if human_file == 'exclude' or exclude:
 			dat = eval(pd.read_csv(human_file1, usecols=['under_performance_exclude']).iloc[0][0])[0]
 		else:
 			dat = eval(pd.read_csv(human_file, usecols=['under_performance']).iloc[0][0])[0]
@@ -615,7 +573,7 @@ def under_performance_pie(human_file1, human_file2, fig_dir=None, save=False):
 			ttl = 'Control group' if exp2_str=='_con' else 'Participants excluded'
 		plt.text(1.05*ax_center[0], 1.05, ttl, fontsize=fontsize_labels, va='center',ha='center')
 	
-	plt.text(0, 1.45, 'Sources of Participant Under-Performance\n[% of Model Net Relative Performance]', fontsize=fontsize_labels, fontweight='bold', va='center',ha='center')
+	plt.text(0, 1.45, 'Sources of Participant Under-Performance\n[% of Model Net Performance]', fontsize=fontsize_labels, fontweight='bold', va='center',ha='center')
 	plt.legend(['Implicit costs of information gathering','Imperfect information use',\
 				'Imperfect strategy selection','Imperfect strategy execution',],\
 				fontsize=fontsize_legend, bbox_to_anchor=(0.02,1.05), loc='upper center')
@@ -625,7 +583,7 @@ def under_performance_pie(human_file1, human_file2, fig_dir=None, save=False):
 		plt.savefig(fig_dir+'performance_sources.png', bbox_inches='tight', pad_inches=0.05, facecolor='w')
 	plt.show()
 
-def under_performance_byStrat(human_file1, human_file2, fig_dir=None, save=False):
+def under_performance_byStrat(human_file1, human_file2, fig_dir=None, save=False, exclude=False):
 
 	fontsize_ticks = 32
 	fontsize_labels = 42
@@ -640,7 +598,7 @@ def under_performance_byStrat(human_file1, human_file2, fig_dir=None, save=False
 		ax = fig.add_subplot(1,2,plot_ix+1)
 
 		exp2_str = human_file[-8:-4] if human_file[-8:-4]!='ials' else ''
-		if human_file == 'exclude':
+		if human_file == 'exclude' or exclude:
 			dat = eval(pd.read_csv(human_file1, usecols=['under_performance_exclude']).iloc[0][0])[0]
 		else:
 			dat = eval(pd.read_csv(human_file, usecols=['under_performance']).iloc[0][0])[0]
@@ -668,7 +626,7 @@ def under_performance_byStrat(human_file1, human_file2, fig_dir=None, save=False
 		if plot_ix==1:
 			cbar.set_label('Number of trials\n', rotation=270, fontsize=30, labelpad=25)
 		
-	plt.text(-2.1,-1.25, 'Sources of Imperfect Strategy Selection and Execution\n[% of Model Net Relative Performance]', fontsize=fontsize_labels, va='center',ha='center', fontweight='bold')
+	plt.text(-2.1,-1.25, 'Sources of Imperfect Strategy Selection and Execution\n[% of Model Net Performance]', fontsize=fontsize_labels, va='center',ha='center', fontweight='bold')
 	plt.subplots_adjust(wspace=0.38)
 
 	if save:
@@ -676,7 +634,7 @@ def under_performance_byStrat(human_file1, human_file2, fig_dir=None, save=False
 		plt.savefig(fig_dir+'performance_strategy_sources.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
 	plt.show()
 
-def centroids_exp2(model_file, human_file1, human_file2, fig_dir=None, save=False):
+def exp2_centroids(model_file, human_file1, human_file2, fig_dir=None, save=False):
 	from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 	df1 = pd.read_csv(model_file)
@@ -758,7 +716,7 @@ def centroids_exp2(model_file, human_file1, human_file2, fig_dir=None, save=Fals
 	
 	plt.show()
 
-def strategies_exp2(model_file, human_file1, human_file2, fig_dir=None, save=False):
+def exp2_strategies(model_file, human_file1, human_file2, fig_dir=None, save=False):
 
 	df1 = pd.read_csv(model_file) # model
 	df2 = pd.read_csv(human_file1) # participants in experimental group
@@ -840,7 +798,7 @@ def strategies_exp2(model_file, human_file1, human_file2, fig_dir=None, save=Fal
 
 	plt.show()
 
-def condition_bars_exp2(model_file, human_file1, human_file2, fig_dir=None, save=False):
+def exp2_condition_bars(model_file, human_file1, human_file2, fig_dir=None, save=False):
 
 	df1 = pd.read_csv(model_file) # model
 	df2 = pd.read_csv(human_file1) # participants in experimental group
@@ -931,7 +889,7 @@ def condition_bars_exp2(model_file, human_file1, human_file2, fig_dir=None, save
 			plt.savefig(ttl, bbox_inches='tight', pad_inches=0.05, facecolor='w')
 		plt.show()
 
-def clicks_dispersion_cost_exp2(fig_dir=None, save=False):
+def exp2_clicks_dispersion_cost(fig_dir=None, save=False):
 
 	df_mod2 = pd.read_csv('../data/model/exp2/processed/trials.csv')
 	df_exp = pd.read_csv('../data/human/2.3/processed/trials_exp.csv')
@@ -1021,7 +979,7 @@ def clicks_dispersion_cost_exp2(fig_dir=None, save=False):
 		plt.savefig(fig_dir+'clicks_dispersion_cost.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
 	plt.show()
 
-def clicks_dispersion_cost_3d_exp2(fig_dir=None, save=False):
+def exp2_clicks_dispersion_cost_3d(fig_dir=None, save=False):
 
 	df_mod1 = pd.read_csv('../data/model/exp1/processed/trials.csv')
 	df_h1 = pd.read_csv('../data/human/1.0/processed/trials.csv')
@@ -1143,6 +1101,7 @@ def centroids_1_k(in_file, fig_dir=None, save=False, max_k=12):
 
 
 def lda(model_file, human_file, fig_dir=None, save=False):
+	Exception('This has some uncompleted editing to do')
 	# add click embeddings and labels to pkl file in p_d.append_kmeans
 	from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 
