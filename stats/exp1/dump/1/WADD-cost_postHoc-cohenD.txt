@@ -1,0 +1,1 @@
+\begin{tabular}{@{}c@{}}all pairs except\\$4 \& 8$\end{tabular} & $0.86, 0.083, 0.059, -0.0071$

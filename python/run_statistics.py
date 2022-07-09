@@ -2,22 +2,67 @@ import numpy as np
 import pandas as pd
 import process_data as p_d
 import os
-import pdb
 from scipy.stats import chi2_contingency
 from statsmodels.sandbox.stats.multicomp import multipletests
-from statsmodels.stats import multitest
 from itertools import combinations
 from statsmodels.stats.proportion import proportion_effectsize
 import statsmodels.formula.api as smf
 from scipy.stats import f_oneway, ttest_ind
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 
+def exp1_strategy_logistic_regression(stats_dir='../stats/exp1/', print_summary=True):
+	dump_dir, latex_dir = stats_dir+'dump/1/', stats_dir+'1/'
+	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
+	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
-def exp1_strategy_postHoc_cohenD(human_file='../data/human/1.0/processed/trials.csv', stats_dir='../stats/exp1/', print_summary=True):
+	def R_output_to_df(data):
+		columns = ['param','beta','std_error','z_value','p']
+		df = pd.DataFrame(columns=columns)
+		for row in range(1,5):
+			i,j,substr = 0,0,[]
+			while i < len(data[row]):
+				while data[row][j] == ' ': j+=1
+				i=j
+				while i < len(data[row]) and data[row][i] != ' ': i+=1
+				substr.append(data[row][j:i])
+				j=i
+			df.loc[row,columns[0]] = substr[0].replace('R_','')
+			for i,s in enumerate(substr[1:]):
+				df.loc[row,columns[i+1]] = eval(s)
+		return df
 
-	df = pd.read_csv(human_file)
+	strategies = ['TTB_SAT','SAT_TTB','TTB','WADD','Rand','Other']
+	for strategy in strategies:
+		try:
+			with open(dump_dir+'R_'+strategy+'.txt', 'r') as f:
+				data = f.read().split('\n\n')
+			data = [i.split('\n') for i in data][0]
+		except:
+			print('you need to run ../R/logistic_regression.R to create:\n',\
+				 '\n'.join([dump_dir+'R_'+s+'.txt' for s in strategies]))
+			p_d.print_special('!!! ABORTING exp1_logistic_regression (see message above) !!!')
+			return
+		df = R_output_to_df(data)
 
-	if not os.path.exists(stats_dir): os.makedirs(stats_dir)
+		for param in ['sigma','alpha','cost']:
+			idx = np.where(df['param']==param)[0][0]
+			B, p = df.loc[idx,'beta'], df.loc[idx,'p']
+			p_str = f'= {p:.2}' if p >= 0.001 else '< 0.001'
+			latex_str = f'$B = {B:.2}, p {p_str}$'
+			with open(latex_dir+strategy+'-'+param+'.txt', 'w') as f:
+				f.write(latex_str)
+
+		if print_summary:
+			p_d.print_special(strategy)
+			print(df, '\n')
+	p_d.print_special('saved latex strategy logistic regression stats to '+latex_dir, False)
+
+def exp1_strategy_table(human_file='../data/human/1.0/processed/trials.csv', stats_dir='../stats/exp1/', print_summary=True):
+	dump_dir, latex_dir = stats_dir+'dump/1/', stats_dir+'1/'
+	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
+	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
+
+	df = pd.read_csv(human_file, low_memory=False)
 
 	strategies = ['SAT_TTB','TTB_SAT','Other','TTB','Rand','WADD']
 
@@ -30,7 +75,7 @@ def exp1_strategy_postHoc_cohenD(human_file='../data/human/1.0/processed/trials.
 	for g in strategies:
 		x = proportion_effectsize(np.mean(df[df['sigma']==75][g]), \
 			np.mean(df[df['sigma']==150][g]))
-		with open(stats_dir+g+'-sigma_postHoc-cohenD.txt', 'w') as f:
+		with open(dump_dir+g+'-sigma_postHoc-cohenD.txt', 'w') as f:
 			f.write('n/a & '+f'${x:.{2}}$')
 		if print_summary:
 			print(f'{g} effect size: {x:.{2}}')
@@ -58,22 +103,20 @@ def exp1_strategy_postHoc_cohenD(human_file='../data/human/1.0/processed/trials.
 						df[df[c]==cond_levels[i+1]][g].mean())
 				cd_str += f'{res:.{2}}, '
 			cd_str = cd_str[:-2]+'$'
-			with open(stats_dir+g+'-'+c+'_postHoc-cohenD.txt', 'w') as f:
+			with open(dump_dir+g+'-'+c+'_postHoc-cohenD.txt', 'w') as f:
 				f.write(ph_str+' & '+cd_str)
 			if print_summary:
 				print(g, 'significant post-hoc pairs: '+ph_str_, \
 						'effect sizes (adjacent pairs): '+cd_str.replace('$',''), sep='\n')
 
-	print('saved stats files to '+stats_dir+'*post-hoc_cohenD.txt')
-
 	filenames = [stats_dir + f for f in[\
 				'SAT_TTB-sigma_postHoc-cohenD.txt',\
-			  	'TTB_SAT-sigma_postHoc-cohenD.txt',\
-			  	'TTB-alpha_postHoc-cohenD.txt',\
-			  	'Rand-alpha_postHoc-cohenD.txt',\
-			  	'TTB_SAT-cost_postHoc-cohenD.txt',\
-			  	'TTB-cost_postHoc-cohenD.txt',\
-			  	'SAT_TTB-cost_postHoc-cohenD.txt']]
+				'TTB_SAT-sigma_postHoc-cohenD.txt',\
+				'TTB-alpha_postHoc-cohenD.txt',\
+				'Rand-alpha_postHoc-cohenD.txt',\
+				'TTB_SAT-cost_postHoc-cohenD.txt',\
+				'TTB-cost_postHoc-cohenD.txt',\
+				'SAT_TTB-cost_postHoc-cohenD.txt']]
 
 	table_string = \
 	'\\begin{tabular}{llccc}\n'+\
@@ -90,15 +133,18 @@ def exp1_strategy_postHoc_cohenD(human_file='../data/human/1.0/processed/trials.
 	'\\bottomrule\n'+\
 	'\\end{tabular}'
 
-	with open(stats_dir+'table_strategies.tex', 'w') as f:
+	with open(latex_dir+'table_strategies.tex', 'w') as f:
 		f.write(table_string)
 
-	print('saved latex table to '+stats_dir+'table_strategies.tex')
+	p_d.print_special('saved latex strategy table to '+latex_dir+'table_strategies.tex', False)
 
 def exp1_behavioral_features(human_file='../data/human/1.0/processed/trials.csv', stats_dir='../stats/exp1/', print_summary=True):
+	dump_dir, latex_dir = stats_dir+'dump/2/', stats_dir+'2/'
+	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
+	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
 	for exclude in [False, True]:
-		df = pd.read_csv(human_file)
+		df = pd.read_csv(human_file, low_memory=False)
 		if exclude:
 			df = p_d.exclude_bad_participants(df)
 		exclude_str = '_exclude' if exclude else ''
@@ -151,18 +197,16 @@ def exp1_behavioral_features(human_file='../data/human/1.0/processed/trials.csv'
 						
 				cd_str = '$'+', '.join([f'{p_d.cohen_d(dat[i],dat[i+1]):.2}' for i in range(len(dat)-1)])+'$'
 				
-				if not os.path.exists(stats_dir): os.makedirs(stats_dir)
-
-				with open(stats_dir+p+exclude_str+'-'+c+'_mixedlm.txt', 'w') as f:
+				with open(latex_dir+p+exclude_str+'-'+c+'_mixedlm.txt', 'w') as f:
 					f.write(lm_str1+lm_str2)
 					
-				with open(stats_dir+p+exclude_str+'-'+c+'_mainEffect.txt', 'w') as f:
+				with open(dump_dir+p+exclude_str+'-'+c+'_mainEffect.txt', 'w') as f:
 					f.write(me_str1+me_str2)
 					
-				with open(stats_dir+p+exclude_str+'-'+c+'_postHoc.txt', 'w') as f:
+				with open(dump_dir+p+exclude_str+'-'+c+'_postHoc.txt', 'w') as f:
 					f.write(ph_str)
 					
-				with open(stats_dir+p+exclude_str+'-'+c+'_cohenD.txt', 'w') as f:
+				with open(dump_dir+p+exclude_str+'-'+c+'_cohenD.txt', 'w') as f:
 					f.write(cd_str)
 						
 				if print_summary:
@@ -173,12 +217,12 @@ def exp1_behavioral_features(human_file='../data/human/1.0/processed/trials.csv'
 						tukey, \
 						'effect sizes (adjacent pairs): '+cd_str.replace('$',''), '\n', sep='\n')
 
-	print('saved .txt stats files with regression results, main effects, post-hoc comparisons, and effect sizes to '+stats_dir)
+	p_d.print_special('saved latex behavioral feature regression stats to '+latex_dir, False)
 
 	def make_latex_table(varnames, tablenames, exclude=None):
 		varnames = [x+'-' for y in [[vn]*9 for vn in varnames] for x in y]
 		n_vars = len(varnames)
-		filenames = [stats_dir+''.join(x) for x in zip(varnames, \
+		filenames = [dump_dir+''.join(x) for x in zip(varnames, \
 													np.tile(['sigma_']*3+['alpha_']*3+['cost_']*3,n_vars).tolist(), \
 													np.tile(['mainEffect.txt']+['postHoc.txt']+['cohenD.txt'],3*n_vars).tolist())\
 					]
@@ -213,87 +257,97 @@ def exp1_behavioral_features(human_file='../data/human/1.0/processed/trials.csv'
 								['Relative performance','Relative performance'],\
 								exclude = [False, True])
 
-	with open(stats_dir+'table_behavior.tex', 'w') as f:
+	with open(latex_dir+'table_behavior.tex', 'w') as f:
 		f.write(table)
-	print('saved latex table to '+stats_dir+'table_behavior.tex')
+	p_d.print_special('saved latex table to '+latex_dir+'table_behavior.tex', False)
 
-	with open(stats_dir+'table_performance.tex', 'w') as f:
+	with open(latex_dir+'table_performance.tex', 'w') as f:
 		f.write(table_perf)
-	print('saved latex table to '+stats_dir+'table_performance.tex')
+	p_d.print_special('saved latex  table to '+latex_dir+'table_performance.tex', False)
 
-def exp2_strategy(human_file1='../data/human/2.3/processed/trials_exp.csv', human_file2='../data/human/2.3/processed/trials_con.csv', stats_dir='../stats/exp2/', print_summary=True):
+def exp2_strategies(human_file1='../data/human/2.3/processed/trials_exp.csv', human_file2='../data/human/2.3/processed/trials_con.csv', stats_dir='../stats/exp2/', print_summary=True):
+	dump_dir, latex_dir = stats_dir+'dump/1/', stats_dir+'1/'
+	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
+	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
-	df1 = pd.read_csv(human_file1)
-	df2 = pd.read_csv(human_file2)
+	df1 = pd.read_csv(human_file1, low_memory=False)
+	df2 = pd.read_csv(human_file2, low_memory=False)
 
 	alphas = np.flip(np.sort(df1['alpha'].unique()))
 	costs = np.sort(df1['cost'].unique())
 
 	dof1, dof2 = 1, min(len(df1),len(df2))
 	for s in ['TTB_SAT','SAT_TTB','TTB','WADD']:
-	    for i, a in enumerate(alphas):
-	        for j, c in enumerate(costs):
-	            chi_table = [
-	                        [sum(df1[(df1['alpha']==a)&(df1['cost']==c)][s]==True),\
-	                            sum(df1[(df1['alpha']==a)&(df1['cost']==c)][s]==False)],\
-	                        [sum(df2[(df2['alpha']==a)&(df2['cost']==c)][s]==True),\
-	                            sum(df2[(df2['alpha']==a)&(df2['cost']==c)][s]==False)]\
-	                        ]
-	            chi, p, _, _ = chi2_contingency(chi_table)
+		for i, a in enumerate(alphas):
+			for j, c in enumerate(costs):
+				chi_table = [
+							[sum(df1[(df1['alpha']==a)&(df1['cost']==c)][s]==True),\
+								sum(df1[(df1['alpha']==a)&(df1['cost']==c)][s]==False)],\
+							[sum(df2[(df2['alpha']==a)&(df2['cost']==c)][s]==True),\
+								sum(df2[(df2['alpha']==a)&(df2['cost']==c)][s]==False)]\
+							]
+				chi, p, _, _ = chi2_contingency(chi_table)
 
-	            d = proportion_effectsize(df1[(df1['alpha']==a)&(df1['cost']==c)][s].mean(),\
-	                                      df2[(df2['alpha']==a)&(df2['cost']==c)][s].mean())
+				d = proportion_effectsize(df1[(df1['alpha']==a)&(df1['cost']==c)][s].mean(),\
+										  df2[(df2['alpha']==a)&(df2['cost']==c)][s].mean())
 
-	            p_str = f'={p:.2}' if p >= 0.001 else '<0.001'
-	            latex_str = f'$\chi^2({dof1},{dof2})={chi:.1f}, p{p_str}, d={d:.2f}$'
-	            with open(f'{stats_dir}chi2-{s}-alpha{i}-cost{c}.txt', 'w') as f:
-	                f.write(latex_str)
+				p_str = f'={p:.2}' if p >= 0.001 else '<0.001'
+				latex_str = f'$\chi^2({dof1},{dof2})={chi:.1f}, p{p_str}, d={d:.2f}$'
+				with open(f'{latex_dir}chi2-{s}-alpha{i}-cost{c}.txt', 'w') as f:
+					f.write(latex_str)
 
-	            if print_summary:
-	                print(f'{s}-alpha{i}-cost{c}')
-	                print(latex_str.replace('$','').replace('\\',''))
+				if print_summary:
+					print(f'{s}-alpha{i}-cost{c}')
+					print(latex_str.replace('$','').replace('\\',''))
 
-def exp2_behavior(human_file1='../data/human/2.3/processed/trials_exp.csv', human_file2='../data/human/2.3/processed/trials_con.csv', stats_dir='../stats/exp2/', print_summary=True):
+	p_d.print_special('saved latex strategy chi-square stats to '+latex_dir, False)
 
-	df1 = pd.read_csv(human_file1)
-	df2 = pd.read_csv(human_file2)
+def exp2_behavioral_features(human_file1='../data/human/2.3/processed/trials_exp.csv', human_file2='../data/human/2.3/processed/trials_con.csv', stats_dir='../stats/exp2/', print_summary=True):
+	dump_dir, latex_dir = stats_dir+'dump/2/', stats_dir+'2/'
+	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
+	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
+
+	df1 = pd.read_csv(human_file1, low_memory=False)
+	df2 = pd.read_csv(human_file2, low_memory=False)
 
 	alphas = np.flip(np.sort(df1['alpha'].unique()))
 	costs = np.sort(df1['cost'].unique())
 
 	for s in ['processing_pattern','click_var_outcome','click_var_gamble','nr_clicks','payoff_net_relative']:
-	    for i, a in enumerate(alphas):
-	        for j, c in enumerate(costs):
-	            df1_ = df1.dropna(subset=[s])
-	            df2_ = df2.dropna(subset=[s])
-	            
-	            x1 = df1_[(df1_['alpha']==a)&(df1_['cost']==c)].groupby('pid').mean()[s]
-	            x2 = df2_[(df2_['alpha']==a)&(df2_['cost']==c)].groupby('pid').mean()[s]
-	            
-	            t, p = ttest_ind(x1, x2)
-	            d = p_d.cohen_d(x1, x2)
-	                
-	            dof = len(x1) + len(x2) - 2
-	            p_str = f'={p:.2}' if p >= 0.001 else '<0.001'
-	            # table formatting vs. in-text
-	            sep = '$ & $' if s in ['processing_pattern','click_var_outcome','click_var_gamble'] else ', '
-	            latex_str = f'$t({dof})={t:.2f}{sep}p{p_str}{sep}d={d:.2f}$'
-	            with open(f'{stats_dir}ttest-{s}-alpha{i}-cost{c}.txt', 'w') as f:
-	                f.write(latex_str)
-	                
-	            if print_summary:
-	                print(f'{s}-alpha{i}-cost{c}')
-	                print(latex_str.replace('$','').replace('\\','').replace(' &',','))
+		dump_file = s in ['processing_pattern','click_var_outcome','click_var_gamble'] # results formated for a table, not in-text
+		for i, a in enumerate(alphas):
+			for j, c in enumerate(costs):
+				df1_ = df1.dropna(subset=[s])
+				df2_ = df2.dropna(subset=[s])
+				
+				x1 = df1_[(df1_['alpha']==a)&(df1_['cost']==c)].groupby('pid').mean()[s]
+				x2 = df2_[(df2_['alpha']==a)&(df2_['cost']==c)].groupby('pid').mean()[s]
+				
+				t, p = ttest_ind(x1, x2)
+				d = p_d.cohen_d(x1, x2)
+					
+				dof = len(x1) + len(x2) - 2
+				p_str = f'={p:.2}' if p >= 0.001 else '<0.001'
+				# table formatting vs. in-text
+				sep = '$ & $' if dump_file else ', '
+				out_dir = dump_dir if dump_file else latex_dir
+				out_str = f'$t({dof})={t:.2f}{sep}p{p_str}{sep}d={d:.2f}$'
+				with open(f'{out_dir}ttest-{s}-alpha{i}-cost{c}.txt', 'w') as f:
+					f.write(out_str)
+					
+				if print_summary:
+					print(f'{s}-alpha{i}-cost{c}')
+					print(out_str.replace('$','').replace('\\','').replace(' &',','))
 
-	print('saved .txt stats files with t-tests, p-values, and effect sizes to '+stats_dir)
+	p_d.print_special('saved latex behavioral stats to '+latex_dir, False)
 
-	filenames = [stats_dir+''.join(x) for x in zip(\
-	                                            ['ttest-']*12,\
-	                                            ['processing_pattern-']*4+\
-	                                            ['click_var_outcome-']*4+\
-	                                            ['click_var_gamble-']*4,\
-	                                            np.tile(['alpha0-','alpha1-'],6).tolist(),
-	                                            np.tile(['cost1.txt']*2+['cost4.txt']*2,3).tolist())]
+	filenames = [dump_dir+''.join(x) for x in zip(\
+												['ttest-']*12,\
+												['processing_pattern-']*4+\
+												['click_var_outcome-']*4+\
+												['click_var_gamble-']*4,\
+												np.tile(['alpha0-','alpha1-'],6).tolist(),
+												np.tile(['cost1.txt']*2+['cost4.txt']*2,3).tolist())]
 
 	table_string = \
 	'\\begin{tabular}{lclll}\n'+\
@@ -303,122 +357,135 @@ def exp2_behavior(human_file1='../data/human/2.3/processed/trials_exp.csv', huma
 	'\\begin{tabular}{@{}c@{}}Effect size\\\\(Cohen\'s $d$)\\end{tabular}& '+\
 	'\\midrule\n'+\
 	'\\\\\n'.join([''.join(x) for x in zip(\
-	                                    ['Processing pattern']*4 + \
-	                                    ['Attribute variance']*4 + \
-	                                    ['Alternative variance']*4, \
-	                                    [' & ']*12,\
+										['Processing pattern']*4 + \
+										['Attribute variance']*4 + \
+										['Alternative variance']*4, \
+										[' & ']*12,\
 										[' \\begin{tabular}{@{}c@{}} '+y+' \\end{tabular} ' for y in \
 										['\\\\'.join(z) for z in zip(np.tile(['$\\alpha^{-1}=10^{-0.5}$','$\\alpha^{-1}=10^{0.5}$'],6).tolist(),
 																	 np.tile(['$\\lambda=1$']*2+['$\\lambda=4$']*2,3).tolist())]], \
-	                                    [' & ']*12,\
-	                                    [open(filenames[i],'r').read() for i in range(len(filenames))])\
-	                ])+\
+										[' & ']*12,\
+										[open(filenames[i],'r').read() for i in range(len(filenames))])\
+					])+\
 	'\\\\\n'+\
 	'\\bottomrule'+\
 	'\\end{tabular}'
 
-	with open(stats_dir+'table_behavior.tex', 'w') as f:
+	with open(latex_dir+'table_behavior.tex', 'w') as f:
 		f.write(table_string)
 
-	print('saved latex table to '+stats_dir+'table_behavior.tex')
+	p_d.print_special('saved latex table to '+latex_dir+'table_behavior.tex', False)
 
 def under_performance(human_file, stats_dir, exclude_participants=False):
+	dump_dir, latex_dir = stats_dir+'dump/3/', stats_dir+'3/'
+	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
+	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
 	exclude_str = '' if not exclude_participants else '_exclude'
-	dat = eval(pd.read_csv(human_file, columns=['under_performance'+exclude_str]).iloc[0])[0]
+	dat = eval(pd.read_csv(human_file, usecols=['under_performance'+exclude_str], low_memory=False).iloc[0][0])[0]
 	exp2_str = human_file[-8:-4] if 'exp2' in stats_dir else ''
 
 	# model clicks - human clicks
 	x = dat['nr_clicks_dif']
-	with open(stats_dir+'perf-reduc_nr_clicks'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_nr_clicks'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${x:.{1}f}$')
 
 	# overall perforamcne gap in units of gross reward
 	x = dat['peformance_gap_points']
-	with open(stats_dir+'perf-reduc_points'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_points'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${x:.{1}f}$')
 
 	# overall perforamcne gap in units of gross relative reward
 	x = dat['peformance_gap_gross_abs']
-	with open(stats_dir+'perf-reduc_overall_gross-abs'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_overall_gross-abs'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${x:.{2}f}$')
 
 	# overall perforamcne gap in percentage of model gross relative reward
 	x = dat['peformance_gap_gross_pct']
-	with open(stats_dir+'perf-reduc_overall_gross-pct'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_overall_gross-pct'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${x:.{1}f}\\%$')
 
 	# overall perforamcne in percentage of model net relative reward
 	x = dat['human_performance_pct']
-	with open(stats_dir+'perf-overall-pct'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-overall-pct'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${x:.{2}f}$')
 
 	# overall perforamcne gap in units of net relative reward
 	x = dat['peformance_gap_abs']
-	with open(stats_dir+'perf-reduc_overall-abs'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_overall-abs'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${x:.{2}f}$')
 
 	# overall perforamcne gap in percentage of model net relative reward
 	x = dat['peformance_gap_pct']
-	with open(stats_dir+'perf-reduc_overall-pct'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_overall-pct'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${x:.{1}f}\\%$')
 
 	# reduction in performance from implicit costs, as a fraction of model performance
 	x = dat['implicit_costs_model_fraction']
-	with open(stats_dir+'perf-reduc_implicit-costs_model'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_implicit-costs_model'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${100*x:.{1}f}\\%$')
 		
 	# reduction in performance from implicit costs, as a fraction of model-human performance gap
 	x = dat['implicit_costs']
-	with open(stats_dir+'perf-reduc_implicit-costs'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_implicit-costs'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${100*x:.{1}f}\\%$')
 		
 	# reduction in performance from imperfect use of information, as a fraction of model-human performance gap
 	x = dat['imperfect_info_use']
-	with open(stats_dir+'perf-reduc_info-use'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_info-use'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${100*x:.{1}f}\\%$')
 		
 	# reduction in performance from imperfect strategy selection, as a fraction of model-human performance gap
 	x = dat['imperfect_strat_selec']
-	with open(stats_dir+'perf-reduc_strat-selec'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_strat-selec'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${100*x:.{1}f}\\%$')
 		
 	# fraction of previous value from random gambling
 	x = dat['imperfect_strat_selec_by_strat'][4] / dat['imperfect_strat_selec']
-	with open(stats_dir+'perf-reduc_strat-selec-from-rand'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_strat-selec-from-rand'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${100*x:.{1}f}\\%$')
 		
 	# and random gambling as fraction of total under-performance
 	x = dat['imperfect_strat_selec_by_strat'][4]
-	with open(stats_dir+'perf-reduc_strat-selec-rand'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_strat-selec-rand'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${100*x:.{1}f}\\%$')
 		
 	# reduction in performance from imperfect strategy selection, as a fraction of model-human performance gap
 	x = dat['imperfect_strat_exec']
-	with open(stats_dir+'perf-reduc_strat-exec'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_strat-exec'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${100*x:.{1}f}\\%$')
 
 	# reduction in performance from imperfect strategy selection and execution, as a fraction of model-human performance gap
 	x = dat['imperfect_strat_selec_and_exec']
-	with open(stats_dir+'perf-reduc_strat-selec-exec'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_strat-selec-exec'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${100*x:.{1}f}\\%$')
 
 	# reduction in performance from imperfect strategy selection and execution, as a fraction of model-human performance gap
 	x = dat['imperfect_info_use_points_lost']
-	with open(stats_dir+'perf-reduc_info-use-pointsPerTrial'+exp2_str+exclude_str+'.txt', 'w') as f:
+	with open(latex_dir+'perf-reduc_info-use-pointsPerTrial'+exp2_str+exclude_str+'.txt', 'w') as f:
 		f.write(f'${100*x:.{1}f}\\%$')
 
-	print('saved under-performance files to '+stats_dir+'perf-reduc_....txt')
+	p_d.print_special('saved under-performance files to '+latex_dir+'perf-reduc_....txt', False)
 
 def participant_demographics(human_file):
 
-	participants = pd.read_csv(human_file)
+	participants = pd.read_csv(human_file, low_memory=False)
 
-	print('Participants: ',len(participants),
-		 '\nFemales: ',sum(participants.gender=='female'),
-		 '\nAge ',np.mean(participants.age),' +/- ',np.std(participants.age),' ',min(participants.age),'-',max(participants.age),
-		 '\nBonus: ',np.mean(participants.bonus),' +/- ',np.std(participants.bonus),' ',min(participants.bonus),'-',max(participants.bonus),
-		 '\nExperiment length (minutes): ',np.mean(participants.total_time)/60000,' +/- ',np.std(participants.total_time)/60000,' ',min(participants.total_time)/60000,'-',max(participants.total_time)/60000)
+	p_d.print_special('Participant demographics from '+human_file)
+
+	nr_female = sum(participants['gender']=='female')
+	print(f'Participants: {len(participants)}',
+		 f'Females: {nr_female}',
+		 f'Age {participants.age.mean():.2f}, \
+			std: {participants.age.std():.2f}, \
+			range: {participants.age.min():.2f}-{participants.age.max():.2f}',
+		 f'Bonus: {participants.bonus.mean():.2f}, \
+			std: {participants.bonus.std():.2f}, \
+			range: {participants.bonus.min():.2f}-{participants.bonus.max():.2f}',
+		 f'Experiment length (minutes): {participants.total_time.mean()/60000:.2f}, \
+			std: {participants.total_time.std()/60000:.2f}, \
+			range: {participants.total_time.min()/60000:.2f}-{participants.total_time.max()/60000:.2f}', \
+		 sep='\n')
 
 def make_posthoc_str(reject, pairs, names):
 	reject = np.array(reject)

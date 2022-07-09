@@ -1,1 +1,0 @@
-\begin{tabular}{@{}c@{}}all pairs except\\10^{.0} \& 10^{0.5}\end{tabular} & $0.12, 0.048, 0.015, 0.11$
