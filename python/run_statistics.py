@@ -38,8 +38,8 @@ def exp1_strategy_logistic_regression(stats_dir='../stats/exp1/', print_summary=
 				data = f.read().split('\n\n')
 			data = [i.split('\n') for i in data][0]
 		except:
-			print('you need to run ../R/logistic_regression.R to create:\n',\
-				 '\n'.join([dump_dir+'R_'+s+'.txt' for s in strategies]))
+			print('='*79,'you need to run ../R/logistic_regression.R to create:',\
+				 '\n'.join([dump_dir+'R_'+s+'.txt' for s in strategies]),sep='\n')
 			p_d.print_special('!!! ABORTING exp1_logistic_regression (see message above) !!!')
 			return
 		df = R_output_to_df(data)

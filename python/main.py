@@ -1,15 +1,3 @@
-# import importlib
-# import time
-# import multiprocessing
-# import os
-# from subprocess import call
-
-
-def run_all():
-    data_processing()
-    figures()
-    statistics()
-
 
 def data_processing():
     import process_data as p_d
@@ -82,7 +70,6 @@ def statistics(print_summary=True):
     rs.participant_demographics('../data/human/2.3/participants.csv')
 
 
-
-
-
-
+data_processing()
+figures()
+statistics()
