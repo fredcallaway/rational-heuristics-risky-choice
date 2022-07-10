@@ -6,3 +6,4 @@ julia/.jukeignore
 data/model/exp1/processed/trials_click_embeddings.pkl
 data/model/exp1_fitcost/processed/trials_click_embeddings.pkl
 data/model/exp1_fitcost_exclude/processed/trials_click_embeddings.pkl
+python/strategy_dicovery.ipynb
