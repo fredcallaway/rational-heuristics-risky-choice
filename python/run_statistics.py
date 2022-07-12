@@ -390,6 +390,7 @@ def exp2_behavioral_features(exp=cfg.exp2):
 
 def under_performance(exp=cfg.exp1.human, exclude=False):
 	dump_dir, latex_dir = exp.stats+'dump/3/', exp.stats+'3/'
+	latex_dir = exp.stats+'3b/' if exclude and exp.num==2 else latex_dir
 	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
 	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 

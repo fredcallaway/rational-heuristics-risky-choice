@@ -40,7 +40,7 @@ def figures(save=True, show=False):
 
 def statistics(print_summary=True):
 
-    # Experiment 1
+    # # Experiment 1
     cfg.exp1.stats.print_summary = print_summary
     rs.exp1_strategy_logistic_regression()
     rs.exp1_strategy_table()
