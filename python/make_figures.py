@@ -435,9 +435,6 @@ def exp1_condition_lines(exp=cfg.exp1):
 
 def strategyVsKmeans_confusion_matrix(exp=cfg.exp1, exclude=False):
 
-	df1 = pd.read_csv(exp.model, low_memory=False)
-	df2 = pd.read_csv(exp.human, low_memory=False)
-
 	fontsize_ticks = 32
 	fontsize_labels = 42
 	fontsize_legend = 36
@@ -447,13 +444,19 @@ def strategyVsKmeans_confusion_matrix(exp=cfg.exp1, exclude=False):
 	labels = [['TTB','WADD','SAT-TTB','SAT-TTB+','other'],
 			['TTB','WADD','SAT-TTB','SAT-TTB+','random','other']]
 
+	fig = plt.figure(figsize=(32,16))
+
 	exclude_str = '' if not exclude else '_exclude'
-	for isHuman, df in enumerate([df1, df2]):
-		strats = strategies[isHuman]
-		strat_labels = labels[isHuman]
+	for plot_idx, dat in enumerate([exp.model, exp.human]):
+		df = pd.read_csv(dat, low_memory=False)
+
+		plt.subplot(1,2,plot_idx+1)
+
+		strats = strategies[dat.isHuman]
+		strat_labels = labels[dat.isHuman]
 
 		tmp = pd.DataFrame(columns=['strategy','km_strategy'])
-		if isHuman:
+		if dat.isHuman:
 			tmp['strategy'] = df['strategy'].values
 			tmp['km_strategy'] = df['km_strategy'].values
 		else:
@@ -466,14 +469,12 @@ def strategyVsKmeans_confusion_matrix(exp=cfg.exp1, exclude=False):
 		for i, s in enumerate(strats):
 			idx = tmp['km_strategy'] == s
 			for j, s_ in enumerate(strats):
-				if isHuman:
+				if dat.isHuman:
 					confusion_mat[i,j] = sum(tmp[idx]['strategy'] == s_)
 				else:
 					confusion_mat[i,j] = sum((tmp[idx]['strategy'] == s_))# * (df[idx]['trial_weight'+exclude_str])) + sum((tmp[idx]['strategy'] != s_) * (1-df[idx]['trial_weight'+exclude_str]))
 		confusion_mat = confusion_mat[:-1,:]
 		pct = confusion_mat/sum(sum(confusion_mat))*100
-
-		plt.figure(figsize=(16,16))
 
 		clust_labels = ['1','2','3','4','5']
 
@@ -484,24 +485,26 @@ def strategyVsKmeans_confusion_matrix(exp=cfg.exp1, exclude=False):
 				ax.text(j, i, '{:.1f}'.format(pct[i,j])+'%',ha="center", va="center", color="w",fontsize=fontsize_ticks,fontweight='bold')
 		plt.xticks(range(confusion_mat.shape[1]),labels=strat_labels[:confusion_mat.shape[1]],rotation=90,fontsize=fontsize_ticks)
 		plt.yticks(range(confusion_mat.shape[0]),labels=clust_labels[:confusion_mat.shape[0]],fontsize=fontsize_ticks)
-		plt.ylabel('k-means cluster', fontsize=fontsize_labels)
-		plt.xlabel('strategy', fontsize=fontsize_labels)
-		plt.title('Confusion Matrix', fontsize=fontsize_labels)
-		# plt.clim(0, clim)
+		if plot_idx==0: plt.ylabel(r'$k$'+'-means Cluster', fontsize=fontsize_labels)
+		plt.xlabel('Strategy', fontsize=fontsize_labels)
+		ttl = 'Model' if not dat.isHuman else 'Participants'
+		plt.title(ttl, fontsize=fontsize_labels)
 		cbar = plt.colorbar(fraction=0.04, pad=0.04)
 		cbar.ax.tick_params(labelsize=20)
 
-		if exp.figs.save:
-			ttl_sfx = '' if isHuman else '_model'
-			plt.savefig(exp.figs+'confusion_mat_kmeans-strategy'+ttl_sfx+'.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
-			res = cohens_kappa(confusion_mat[:,:confusion_mat.shape[0]])
-			r1, r2, r3 = res['kappa'], res['kappa_low'], res['kappa_upp']
-			with open(exp.stats+'1/confusion_mat_kmeans-strategy-kappa'+ttl_sfx+'.txt', 'w') as f:
-				f.write(f'$\\kappa={r1:.{3}f}, 95\\% CI [{r2:.{3}f}, {r3:.{3}f}]$')
-			p_d.print_special('saved figure to '+exp.figs+'confusion_mat_kmeans-strategy'+ttl_sfx+'.png', False)
-			p_d.print_special('saved Cohen\'s Kappa stats to'+exp.stats+'confusion_mat_kmeans-strategy-kappa'+ttl_sfx+'.txt', False)
+		res = cohens_kappa(confusion_mat[:,:confusion_mat.shape[0]])
+		r1, r2, r3 = res['kappa'], res['kappa_low'], res['kappa_upp']
+		ttl_str = '' if dat.isHuman else '_model'
+		with open(dat.stats+'1/confusion_mat_kmeans-strategy-kappa'+ttl_str+'.txt', 'w') as f:
+			f.write(f'$\\kappa={r1:.{3}f}, 95\\% CI [{r2:.{3}f}, {r3:.{3}f}]$')
+		p_d.print_special('saved Cohen\'s Kappa stats to'+dat.stats+'confusion_mat_kmeans-strategy-kappa'+ttl_str+'.txt', False)
 
-		if exp.figs.show: plt.show()
+	plt.text(-1.5,-1, 'Confusion Matrices', fontsize=fontsize_labels, va='center',ha='center', fontweight='bold')
+	if exp.figs.save:
+		plt.savefig(exp.figs+'confusion_mat_kmeans-strategy.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
+		p_d.print_special('saved figure to '+exp.figs+'confusion_mat_kmeans-strategy.png', False)
+
+	if exp.figs.show: plt.show()
 
 def under_performance_pie(exp=cfg.exp1, exclude=False):
 
@@ -566,7 +569,7 @@ def under_performance_pie(exp=cfg.exp1, exclude=False):
 			ttl = 'Control group' if exp2_str=='_con' else 'Participants excluded'
 		plt.text(1.05*ax_center[0], 1.05, ttl, fontsize=fontsize_labels, va='center',ha='center')
 	
-	plt.text(0, 1.45, 'Sources of Participant Under-Performance\n[% of Model Net Performance]', fontsize=fontsize_labels, fontweight='bold', va='center',ha='center')
+	plt.text(0, 1.45, 'Sources of Participant Under-Performance\n[% Model Net Performance]', fontsize=fontsize_labels, fontweight='bold', va='center',ha='center')
 	plt.legend(['Implicit costs of information gathering','Imperfect information use',\
 				'Imperfect strategy selection','Imperfect strategy execution',],\
 				fontsize=fontsize_legend, bbox_to_anchor=(0.02,1.05), loc='upper center')
@@ -627,7 +630,7 @@ def under_performance_byStrat(exp=cfg.exp1, exclude=False):
 		if plot_ix==1:
 			cbar.set_label('Number of trials\n', rotation=270, fontsize=30, labelpad=25)
 		
-	plt.text(-2.1,-1.25, 'Sources of Imperfect Strategy Selection and Execution\n[% of Model Net Performance]', fontsize=fontsize_labels, va='center',ha='center', fontweight='bold')
+	plt.text(-2.1,-1.25, 'Sources of Imperfect Strategy Selection and Execution\n[% Model Net Performance]', fontsize=fontsize_labels, va='center',ha='center', fontweight='bold')
 	plt.subplots_adjust(wspace=0.38)
 
 	if exp.figs.save:

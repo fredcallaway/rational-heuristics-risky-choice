@@ -261,7 +261,8 @@ def process_raw_data(dataObj):
 		trials2.to_csv(os.path.join(out_dir,'trials_con.csv'), index=False)
 	else:
 		pickle_dat = {'click_embedding':trials['click_embedding'].values, 'strategy':trials['strategy'].values}
-		del trials['click_embedding']; del trials['strategy']
+		del trials['click_embedding']
+		if not(dataObj.isHuman): del trials['strategy']
 		pickle.dump(pickle_dat, open(os.path.join(out_dir,'trials_click_embeddings.pkl'),'wb'))
 		trials.to_csv(os.path.join(out_dir,'trials.csv'), index=False)
 
@@ -525,7 +526,7 @@ def run_process_data(which_experiment='both', process_human=True, run_kmeans=Tru
 					print_special(f'finished running k-means for Exp. 1 model data from {exp.model} with {k} clusters ({cfg.timer()})', False)
 				print_special(f'finished running k-means for Exp. 1 model data from {exp.model} with {k} clusters ({cfg.timer()})')
 
-		p_d.print_special(f'finished processing Exp. 1 ({cfg.timer()})', header=True)
+		print_special(f'finished processing Exp. 1 ({cfg.timer()})', header=True)
 
 	if which_experiment == 'both' or int(which_experiment) == 2:
 		exp = cfg.Exp2
