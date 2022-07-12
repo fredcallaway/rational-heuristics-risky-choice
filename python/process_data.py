@@ -1,13 +1,14 @@
-import numpy as np
-import pandas as pd
+import os
 import json
 import pickle
+import numpy as np
+import pandas as pd
 from collections import defaultdict
-from ast import literal_eval
-import os
-import time
 import multiprocessing
 import warnings
+from ast import literal_eval
+from sklearn.cluster import KMeans
+import cfg
 
 
 def append_features(in_file, isHuman=False, max_EV_by_condition=None):
@@ -206,7 +207,7 @@ def save_max_EV_by_condition(human_file, out_dir):
 	df = pd.read_csv(human_file, low_memory=False)
 	df = df[df['block']=='test']
 	df.loc[:,'alpha'] = df['alpha'].round(decimals=1)
-	df = df.set_index(['sigma','alpha'])
+	df = df.set_index(['sigma','alpha']).sort_index()
 	max_EV_by_condition = {}
 	for idx in df.index.sort_values().unique():
 		probabilities = df.loc[idx,'probabilities'].apply(literal_eval).values.tolist()
@@ -219,23 +220,19 @@ def save_max_EV_by_condition(human_file, out_dir):
 
 	return max_EV_by_condition
 
-def process_raw_data(in_dir_or_file, isHuman=False):
+def process_raw_data(dataObj):
 
-	out_dir = os.path.join(os.path.dirname(in_dir_or_file), 'processed')
+	out_dir = os.path.dirname(dataObj)
 	
 	with warnings.catch_warnings(): # for np.divide(0,0) and np.nanmean([ [all nans] )
 		warnings.simplefilter("ignore", category=RuntimeWarning)
-		two_groups = False
-		if isHuman:
-			max_EV_by_condition = save_max_EV_by_condition(in_dir_or_file, out_dir)
-			trials = append_features(in_dir_or_file, True, max_EV_by_condition)
+		if dataObj.isHuman:
+			max_EV_by_condition = save_max_EV_by_condition(dataObj.raw, out_dir)
+			trials = append_features(dataObj.raw, True, max_EV_by_condition)
 			trials = append_R_features(trials)
-			if 'display_ev' in trials.columns:
-				two_groups = True
 		else:
-			if os.path.isdir(in_dir_or_file):
-				out_dir = os.path.join(in_dir_or_file, 'processed')
-				files = [os.path.join(in_dir_or_file,f) for f in os.listdir(in_dir_or_file) if f[-5:]=='.json']
+			if os.path.isdir(dataObj.raw):
+				files = [os.path.join(dataObj.raw, f) for f in os.listdir(dataObj.raw) if f[-5:]=='.json']
 				nr_processes = multiprocessing.cpu_count()
 				with multiprocessing.Pool(processes=nr_processes) as pool:
 					results = pool.map(append_features, files)
@@ -243,29 +240,28 @@ def process_raw_data(in_dir_or_file, isHuman=False):
 				for res in results:
 					trials = trials.append(res, ignore_index=True)
 			else:
-				trials = append_features(in_dir_or_file)
+				trials = append_features(dataObj.raw)
 				trials = pd.DataFrame(data=trials)
 
 	if not os.path.exists(out_dir):
 		os.makedirs(out_dir)
 
-	if two_groups:
-		trials1 = trials[trials.display_ev==True]
-		trials2 = trials[trials.display_ev==False]
+	if dataObj.num==2 and dataObj.isHuman:
+		trials1 = trials[trials['display_ev']==True]
+		trials2 = trials[trials['display_ev']==False]
 		pickle_dat1 = {'click_embedding':trials1['click_embedding'].values, 'strategy':trials1['strategy'].values}
 		del trials1['click_embedding']
-		if not(isHuman): del trials1['strategy']
+		if not(dataObj.isHuman): del trials1['strategy']
 		pickle_dat2 = {'click_embedding':trials2['click_embedding'].values, 'strategy':trials2['strategy'].values}
 		del trials2['click_embedding']
-		if not(isHuman): del trials2['strategy']
+		if not(dataObj.isHuman): del trials2['strategy']
 		pickle.dump(pickle_dat1, open(os.path.join(out_dir,'trials_exp_click_embeddings.pkl'),'wb'))
 		pickle.dump(pickle_dat2, open(os.path.join(out_dir,'trials_con_click_embeddings.pkl'),'wb'))
 		trials1.to_csv(os.path.join(out_dir,'trials_exp.csv'), index=False)
 		trials2.to_csv(os.path.join(out_dir,'trials_con.csv'), index=False)
 	else:
 		pickle_dat = {'click_embedding':trials['click_embedding'].values, 'strategy':trials['strategy'].values}
-		del trials['click_embedding']
-		if not(isHuman): del trials['strategy']
+		del trials['click_embedding']; del trials['strategy']
 		pickle.dump(pickle_dat, open(os.path.join(out_dir,'trials_click_embeddings.pkl'),'wb'))
 		trials.to_csv(os.path.join(out_dir,'trials.csv'), index=False)
 
@@ -275,7 +271,7 @@ def append_model_trial_weight_from_human_frequencies(model_file, human_file, exc
 
 	df_model = pd.read_csv(model_file, low_memory=False)
 
-	experiment2 = True if human_group2_file else False
+	experiment2 = True if human_file.num==2 else False
 	exclude_sigma_150 = [False, True] if not experiment2 else [False]
 	for exclude_sigma in exclude_sigma_150:
 		for exclude in exclude_participants:
@@ -286,6 +282,7 @@ def append_model_trial_weight_from_human_frequencies(model_file, human_file, exc
 			else:
 				sig_str = ''
 			exc_str = '_exclude' if exclude else ''
+			exclude = 2 if exclude and experiment2 else exclude
 			df_human = exclude_bad_participants(df_human, exclude)
 
 			if experiment2:
@@ -335,8 +332,8 @@ def append_model_payoff(model_file, human_file):
 	df1.loc[:,'alpha'] = df1['alpha'].round(decimals=1)
 	df2.loc[:,'alpha'] = df2['alpha'].round(decimals=1)
 
-	df1_ = df1.set_index(['problem_id','sigma','alpha','cost'])
-	df2_ = df2.set_index(['problem_id','sigma','alpha','cost'])
+	df1_ = df1.set_index(['problem_id','sigma','alpha','cost']).sort_index()
+	df2_ = df2.set_index(['problem_id','sigma','alpha','cost']).sort_index()
 
 	df2['payoff_gross_modelDiff'] = ''
 	df2['payoff_net_modelDiff'] = ''
@@ -362,20 +359,19 @@ def append_sources_of_under_performance(model_file, human_file, model_file_fitco
 
 	df1 = pd.read_csv(model_file, low_memory=False)
 	df2_orig = pd.read_csv(human_file, low_memory=False)
+	exclude_participants = 2 if exclude_participants and human_file.num==2 else exclude_participants
 	df2 = exclude_bad_participants(df2_orig, exclude_participants)
 	df1_fitcost = pd.read_csv(model_file_fitcost, low_memory=False)
-
 	exclude_str = '' if not exclude_participants else '_exclude'
-	exp2_str = '_con' if 'trials_con' in human_file else '' # when comparing the model to one group from exp2, use trials weights specific to that group
-	exp2_str = '_exp' if 'trials_exp' in human_file else exp2_str
+	exp2_str = '' if not human_file.group else '_'+human_file.group # when comparing the model to one group from exp2, use trials weights specific to that group
 
 	perf_metric = 'payoff_net'
 	strategies = ['TTB_SAT','SAT_TTB','TTB','WADD','Rand','Other'] # must be in this order, based on process_data.append_features()
 
 	df1_fitcost.loc[:,'alpha'] = df1_fitcost['alpha'].round(decimals=1) # use fitcost to control for implicit costs
 	df2.loc[:,'alpha'] = df2['alpha'].round(decimals=1)
-	df1_ = df1_fitcost.set_index(['problem_id','sigma','alpha','cost'])
-	df2_ = df2.set_index(['problem_id','sigma','alpha','cost'])
+	df1_ = df1_fitcost.set_index(['problem_id','sigma','alpha','cost']).sort_index()
+	df2_ = df2.set_index(['problem_id','sigma','alpha','cost']).sort_index()
 	trial_counts = np.zeros((len(strategies),len(strategies)))
 	suboptimal_performance = np.zeros((len(strategies),len(strategies)))
 	for i, trial_type in enumerate(df2_.index): #.unique():
@@ -423,11 +419,10 @@ def append_sources_of_under_performance(model_file, human_file, model_file_fitco
 	df2_orig['under_performance'+exclude_str].iloc[0] = [out]
 
 	df2_orig.to_csv(human_file, index=False)
-	print_special('appended sources of under-performance in column \'under_performance'+exclude_str+'\' to '+human_file, False)
+	print_special('appended sources of under-performance (using performance metric \''+perf_metric+'\') in column \'under_performance'+exclude_str+'\' to '+human_file, False)
 
 def append_kmeans(in_file, k, sim_trials_per_human_trial=None, label_cols=False):
 	# label_cols is for testing many differnt values of k
-	from sklearn.cluster import KMeans
 	pd.options.mode.chained_assignment = None
 	
 	df = pd.read_csv(in_file, low_memory=False)
@@ -490,100 +485,93 @@ def append_kmeans(in_file, k, sim_trials_per_human_trial=None, label_cols=False)
 
 def run_process_data(which_experiment='both', process_human=True, run_kmeans=True, process_model=True):
 
-	t0 = time.time()
 	if which_experiment == 'both' or int(which_experiment) == 1:
-		human_file_raw = '../data/human/1.0/trials.csv'
-		human_file = os.path.join(os.path.dirname(human_file_raw), 'processed/trials.csv')
-		model_dirs = ['../data/model/exp1'+sfx for sfx in ['','_fitcost','_fitcost_exclude']]
+		exp = cfg.Exp1()
+		model_dats = [exp.model, exp.model_fitcost, exp.model_fitcost_exclude]
 		exclude_participants = [[False,True], [False], [True]]
 		
 		if process_human:
 			# this must be run prior to append_model_trial_weight_from_human_frequencies
-			process_raw_data(human_file_raw, isHuman=True) 
-			print_special(f'finished preprocessing experiment 1 human data from {human_file} ({time.time()-t0:.1f} sec)')
+			process_raw_data(exp.human) 
+			print_special(f'finished preprocessing Exp. 1 human data from {exp.human.raw} ({cfg.timer()})')
 
 		if process_model:
-			for model_dir, exclude in zip(model_dirs, exclude_participants):
+			for model_dat, exclude in zip(model_dats, exclude_participants):
 				# this must be run before append_sources_of_under_performance
-				process_raw_data(model_dir, isHuman=False)
-
-				model_file = os.path.join(model_dir, 'processed/trials.csv')
-				append_model_trial_weight_from_human_frequencies(model_file, human_file, exclude)
-				print_special(f'finished preprocessing experiment 1 model data from {model_file} ({time.time()-t0:.1f} sec)')
+				process_raw_data(model_dat)
+				append_model_trial_weight_from_human_frequencies(model_dat, exp.human, exclude)
+				print_special(f'finished preprocessing Exp. 1 model data from {model_dat} ({cfg.timer()})')
 
 		if process_human:
-			model_file = os.path.join(model_dirs[0], 'processed/trials.csv')
-			model_file_fitcost = os.path.join(model_dirs[1], 'processed/trials.csv')
-			append_sources_of_under_performance(model_file, human_file, model_file_fitcost, exclude_participants=False)
-			model_file_fitcost = os.path.join(model_dirs[2], 'processed/trials.csv')
-			append_sources_of_under_performance(model_file, human_file, model_file_fitcost, exclude_participants=True)
-			print_special(f'finished appending experiment 1 under-performance data from {human_file} ({time.time()-t0:.1f} sec)')
+			append_sources_of_under_performance(exp.model, exp.human, exp.model_fitcost, exclude_participants=False)
+			append_sources_of_under_performance(exp.model, exp.human, exp.model_fitcost_exclude, exclude_participants=True)
+			print_special(f'finished appending Exp. 1 under-performance data from {exp.human} ({cfg.timer()})')
 
 		if run_kmeans:
 			if process_human:
 				k = 5
-				append_kmeans(human_file, k)
+				append_kmeans(exp.human, k)
 				for k in range(1,13):
-					append_kmeans(human_file, k, label_cols=True)
-				print_special(f'finished running k-means for experiment 1 human data from {human_file} with {k} clusters ({time.time()-t0:.1f} sec)')
+					append_kmeans(exp.human, k, label_cols=True)
+					print_special(f'finished running k-means for Exp. 1 human data from {exp.human} with {k} clusters ({cfg.timer()})', False)
+				print_special(f'finished running k-means for Exp. 1 human data from {exp.human} with {k} clusters ({cfg.timer()})')
 
 			if process_model:
-				model_file = os.path.join(model_dirs[0], 'processed/trials.csv')
 				k = 4
 				sim_trials_per_human_trial = 10 # 10x human trials for kmeans
-				append_kmeans(model_file, k, sim_trials_per_human_trial)
+				append_kmeans(exp.model, k, sim_trials_per_human_trial)
 				for k in range(1,13):
-					append_kmeans(model_file, k, sim_trials_per_human_trial, label_cols=True)
-				print_special(f'finished running k-means for experiment 1 model data from {model_file} with {k} clusters ({time.time()-t0:.1f} sec)')
+					append_kmeans(exp.model, k, sim_trials_per_human_trial, label_cols=True)
+					print_special(f'finished running k-means for Exp. 1 model data from {exp.model} with {k} clusters ({cfg.timer()})', False)
+				print_special(f'finished running k-means for Exp. 1 model data from {exp.model} with {k} clusters ({cfg.timer()})')
 
+		p_d.print_special(f'finished processing Exp. 1 ({cfg.timer()})', header=True)
 
 	if which_experiment == 'both' or int(which_experiment) == 2:
-		human_file_raw = '../data/human/2.3/trials.csv'
-		human_file_con = os.path.join(os.path.dirname(human_file_raw), 'processed/trials_con.csv')
-		human_file_exp = os.path.join(os.path.dirname(human_file_raw), 'processed/trials_exp.csv')
-		model_dirs = ['../data/model/exp2'+sfx for sfx in ['','_con_fitcost_exclude_alt','_exp_fitcost_exclude_alt']]
-		exclude_participants = [[False,2], [2], [2]]
+		exp = cfg.Exp2
+		model_dats = [exp.model, exp.model_fitcost_con, exp.model_fitcost_exp, exp.model_fitcost_exclude_con, exp.model_fitcost_exclude_exp]
+		exclude_participants = [[False,2], [False], [False], [2], [2]]
 		
 		if process_human:
 			# this must be run prior to append_model_trial_weight_from_human_frequencies
-			process_raw_data(human_file_raw, isHuman=True)
-			print_special(f'finished preprocessing experiment 2 human data from {human_file_raw} ({time.time()-t0:.1f} sec)')
+			process_raw_data(exp.human_con) # human_con.raw = human_exp.raw, makes no difference here
+			print_special(f'finished preprocessing Exp. 2 human data from {exp.human_con.raw} ({cfg.timer()})')
 
 		if process_model:
-			for i, (model_dir, exclude) in enumerate(zip(model_dirs, exclude_participants)):
+			for i, (model_dat, exclude) in enumerate(zip(model_dats, exclude_participants)):
 				# this must be run before append_model_payoff and append_sources_of_under_performance
-				process_raw_data(model_dir, isHuman=False)
-				model_file = os.path.join(model_dir, 'processed/trials.csv')
-				if i==0: # this must be run after process_raw_data but before append_model_trial_weight_from_human_frequencies (for exclusion criteria)
-					append_model_payoff(model_file, human_file_con)
-					append_model_payoff(model_file, human_file_exp)
-				append_model_trial_weight_from_human_frequencies(model_file, human_file_con, exclude, human_file_exp)
-				print_special(f'finished preprocessing experiment 2 model data from {model_file} ({time.time()-t0:.1f} sec)')
+				process_raw_data(model_dat)
+				if i==0: # this must be run after process_raw_data but before append_model_trial_weight_from_human_frequencies (exp2 exclusion criteria)
+					append_model_payoff(exp.model, exp.human_con)
+					append_model_payoff(exp.model, exp.human_exp)
+				append_model_trial_weight_from_human_frequencies(model_dat, exp.human_con, exclude, exp.human_exp)
+				print_special(f'finished preprocessing Exp. 2 model data from {exp.human_con} ({cfg.timer()})')
 
 		if process_human:
-			model_file = os.path.join(model_dirs[0], 'processed/trials.csv')
-			model_file_fitcost = os.path.join(model_dirs[1], 'processed/trials.csv')
-			append_sources_of_under_performance(model_file, human_file_con, model_file_fitcost, exclude_participants=2)
-			model_file_fitcost = os.path.join(model_dirs[2], 'processed/trials.csv')
-			append_sources_of_under_performance(model_file, human_file_exp, model_file_fitcost, exclude_participants=2)
-			print_special(f'finished appending experiment 2 under-performance data from {human_file_con} and {human_file_exp} ({time.time()-t0:.1f} sec)')
+			if not process_model:
+				append_model_payoff(exp.model, exp.human_con)
+				append_model_payoff(exp.model, human_file_exp)
+			append_sources_of_under_performance(exp.model, exp.human_con, exp.model_fitcost_con)
+			append_sources_of_under_performance(exp.model, exp.human_exp, exp.model_fitcost_exp)
+			append_sources_of_under_performance(exp.model, exp.human_con, exp.model_fitcost_exclude_con, exclude_participants=2)
+			append_sources_of_under_performance(exp.model, exp.human_exp, exp.model_fitcost_exclude_exp, exclude_participants=2)
+			print_special(f'finished appending Exp. 2 under-performance data from {exp.human_con} and {exp.human_exp} ({cfg.timer()})')
 
 		if run_kmeans:
 			if process_human:
 				k = 5
-				append_kmeans(human_file_con, k)
-				print_special(f'finished running k-means for experiment 2 human data from {human_file_con} with {k} clusters ({time.time()-t0:.1f} sec)')
+				append_kmeans(exp.human_con, k)
+				print_special(f'finished running k-means for Exp. 2 human data from {exp.human_con} with {k} clusters ({cfg.timer()})')
 
 				k = 4
-				append_kmeans(human_file_exp, k)
-				print_special(f'finished running k-means for experiment 2 human data from {human_file_exp} with {k} clusters ({time.time()-t0:.1f} sec)')
+				append_kmeans(exp.human_exp, k)
+				print_special(f'finished running k-means for Exp. 2 human data from {exp.human_exp} with {k} clusters ({cfg.timer()})')
 
 			if process_model:
-				model_file = os.path.join(model_dirs[0], 'processed/trials.csv')
 				k = 4
 				sim_trials_per_human_trial = 10 # 10x human trials for kmeans
-				append_kmeans(model_file, k, sim_trials_per_human_trial)
-				print_special(f'finished running k-means for experiment 2 model data from {model_file} with {k} clusters ({time.time()-t0:.1f} sec)')
+				append_kmeans(exp.model, k, sim_trials_per_human_trial)
+				print_special(f'finished running k-means for Exp. 2 model data from {exp.model} with {k} clusters ({cfg.timer()})')
 
 def cohen_d(x,y):
 	nx, ny = len(x), len(y)
@@ -621,13 +609,14 @@ def exclude_bad_participants(df, exclude_exp=1, **kwargs):
 	idx = mean_bad_trials_by_participant > cutoff
 	participants_to_exclude = mean_bad_trials_by_participant[idx].index
 
-	print_special(f'removed {sum(idx)} participants ({100*np.mean(idx):.1f}%) for current analysis (using {100*cutoff:.1f}% cuttoff for {criteria} trials)', False)
+	print_special(f'removed {sum(idx)} participants ({100*np.mean(idx):.1f}%) for current analysis (using > {cutoff:.1f} cuttoff for participant mean \'{criteria}\')', False)
 
 	return df[~df['pid'].isin(participants_to_exclude)]
 
-def print_special(print_str, big=True):
+def print_special(print_str, big=True, header=False):
 	if big:
 		special_str = '='*(len(print_str)+18)
-		print(special_str+'\n'+'='*8+' '+print_str+' '+'='*8+'\n'+special_str)
+		newlines = '' if not header else '\n'*3
+		print(newlines+special_str+'\n'+'='*8+' '+print_str+' '+'='*8+'\n'+special_str+newlines)
 	else:
 		print('='*8+' '+print_str+' '+'='*8)

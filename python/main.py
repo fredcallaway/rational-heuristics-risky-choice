@@ -1,73 +1,66 @@
+import cfg
+import process_data as p_d
+import make_figures as mf
+import run_statistics as rs
 
 def data_processing():
-    import process_data as p_d
+
     p_d.run_process_data(which_experiment='both')
+    p_d.print_special(f'finished processing data ({cfg.timer()})', header=True)
 
-
-def figures(save=True, close=True):
-    import make_figures as mf
-    import matplotlib.pyplot as plt
+def figures(save=True, show=False):
 
     # Experiment 1
-    model_file = '../data/model/exp1/processed/trials.csv'
-    human_file = '../data/human/1.0/processed/trials.csv'
-    fig_dir = '../figs/exp1/'
-
-    mf.exp1_centroids(save=save)
-    mf.exp1_strategies(save=save)
-    mf.exp1_heatmaps(save=save)
-    if close: plt.close('all')
-    mf.exp1_condition_lines(save=save)
-    if close: plt.close('all')
-    mf.strategyVsKmeans_confusion_matrix(model_file, human_file, fig_dir, save=save)
-    mf.under_performance_pie(human_file, 'exclude', fig_dir, save=save)
-    mf.under_performance_byStrat(human_file, 'exclude', fig_dir, save=save)
-    mf.centroids_1_k(model_file, fig_dir, save=save)
-    mf.centroids_1_k(human_file, fig_dir, save=save)
-    mf.lda(model_file, human_file, fig_dir, save=save)
-    if close: plt.close('all')
+    cfg.exp1.figs.save = save
+    cfg.exp1.figs.show = show
+    mf.exp1_centroids()
+    mf.exp1_strategies()
+    mf.exp1_heatmaps()
+    mf.exp1_condition_lines()
+    mf.strategyVsKmeans_confusion_matrix()
+    mf.under_performance_pie()
+    mf.under_performance_byStrat()
+    mf.centroids_1_k()
+    mf.lda()
 
     # Experiment 2
-    model_file = '../data/model/exp2/processed/trials.csv'
-    human_file1 = '../data/human/2.3/processed/trials_exp.csv'
-    human_file2 = '../data/human/2.3/processed/trials_con.csv'
-    fig_dir = '../figs/exp2/'
+    cfg.exp2.figs.save = save
+    cfg.exp2.figs.show = show
+    mf.exp2_centroids()
+    mf.exp2_strategies()
+    mf.exp2_condition_bars()
+    mf.under_performance_pie(cfg.exp2)
+    mf.under_performance_byStrat(cfg.exp2)
+    mf.under_performance_pie(cfg.exp2, exclude=2)
+    mf.under_performance_byStrat(cfg.exp2, exclude=2)
+    mf.exp2_clicks_dispersion_cost()
+    mf.exp2_clicks_dispersion_cost_3d()
 
-    mf.exp2_centroids(save=save)
-    mf.exp2_strategies(save=save)
-    mf.exp2_condition_bars(save=save)
-    mf.under_performance_pie(human_file1, human_file2, fig_dir, exclude=True, save=save)
-    mf.under_performance_byStrat(human_file1, human_file2, fig_dir, exclude=True, save=save)
-
-    mf.exp2_clicks_dispersion_cost(save=save)
-    mf.exp2_clicks_dispersion_cost_3d(save=save)
-    if close: plt.close('all')
-
-
+    p_d.print_special(f'finished making figures ({cfg.timer()})', header=True)
 
 def statistics(print_summary=True):
-    import run_statistics as rs
 
-    human_file = '../data/human/1.0/processed/trials.csv'
-    stats_dir = '../stats/exp1/'
-    rs.exp1_strategy_logistic_regression(print_summary=print_summary)
-    rs.exp1_strategy_table(print_summary=print_summary)
-    rs.exp1_behavioral_features(print_summary=print_summary)
-    rs.under_performance(human_file, stats_dir)
-    rs.under_performance(human_file, stats_dir, exclude_participants=True)
+    # Experiment 1
+    cfg.exp1.stats.print_summary = print_summary
+    rs.exp1_strategy_logistic_regression()
+    rs.exp1_strategy_table()
+    rs.exp1_behavioral_features()
+    rs.under_performance()
+    rs.under_performance(exclude=True)
 
+    # Experiment 2
+    cfg.exp2.stats.print_summary = print_summary
+    rs.exp2_strategies()
+    rs.exp2_behavioral_features()
+    rs.under_performance(cfg.exp2.human_exp)
+    rs.under_performance(cfg.exp2.human_con)
+    rs.under_performance(cfg.exp2.human_exp, exclude=True)
+    rs.under_performance(cfg.exp2.human_con, exclude=True)
 
-    human_file1 = '../data/human/2.3/processed/trials_exp.csv'
-    human_file2 = '../data/human/2.3/processed/trials_con.csv'
-    stats_dir = '../stats/exp2/'
-    rs.exp2_strategies(print_summary=print_summary)
-    rs.exp2_behavioral_features(print_summary=print_summary)
-    rs.under_performance(human_file1, stats_dir, exclude_participants=2)
-    rs.under_performance(human_file2, stats_dir, exclude_participants=2)
+    rs.participant_demographics(cfg.exp1)
+    rs.participant_demographics(cfg.exp2)
 
-
-    rs.participant_demographics('../data/human/1.0/participants.csv')
-    rs.participant_demographics('../data/human/2.3/participants.csv')
+    p_d.print_special(f'finished running statistics ({cfg.timer()})', header=True)
 
 
 data_processing()

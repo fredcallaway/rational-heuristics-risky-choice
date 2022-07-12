@@ -1,7 +1,6 @@
+import os
 import numpy as np
 import pandas as pd
-import process_data as p_d
-import os
 from scipy.stats import chi2_contingency
 from statsmodels.sandbox.stats.multicomp import multipletests
 from itertools import combinations
@@ -9,9 +8,11 @@ from statsmodels.stats.proportion import proportion_effectsize
 import statsmodels.formula.api as smf
 from scipy.stats import f_oneway, ttest_ind
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
+import process_data as p_d
+import cfg
 
-def exp1_strategy_logistic_regression(stats_dir='../stats/exp1/', print_summary=True):
-	dump_dir, latex_dir = stats_dir+'dump/1/', stats_dir+'1/'
+def exp1_strategy_logistic_regression(exp=cfg.exp1):
+	dump_dir, latex_dir = exp.stats+'dump/1/', exp.stats+'1/'
 	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
 	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
@@ -30,6 +31,8 @@ def exp1_strategy_logistic_regression(stats_dir='../stats/exp1/', print_summary=
 			for i,s in enumerate(substr[1:]):
 				df.loc[row,columns[i+1]] = eval(s)
 		return df
+
+	if exp.stats.print_summary: p_d.print_special('Results for Exp. 1 logistic regression of strategy frequencies on environment conditions', header=True)
 
 	strategies = ['TTB_SAT','SAT_TTB','TTB','WADD','Rand','Other']
 	for strategy in strategies:
@@ -52,17 +55,17 @@ def exp1_strategy_logistic_regression(stats_dir='../stats/exp1/', print_summary=
 			with open(latex_dir+strategy+'-'+param+'.txt', 'w') as f:
 				f.write(latex_str)
 
-		if print_summary:
+		if exp.stats.print_summary:
 			p_d.print_special(strategy)
 			print(df, '\n')
 	p_d.print_special('saved latex strategy logistic regression stats to '+latex_dir, False)
 
-def exp1_strategy_table(human_file='../data/human/1.0/processed/trials.csv', stats_dir='../stats/exp1/', print_summary=True):
-	dump_dir, latex_dir = stats_dir+'dump/1/', stats_dir+'1/'
+def exp1_strategy_table(exp=cfg.exp1):
+	dump_dir, latex_dir = exp.stats+'dump/1/', exp.stats+'1/'
 	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
 	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
-	df = pd.read_csv(human_file, low_memory=False)
+	df = pd.read_csv(exp.human, low_memory=False)
 
 	strategies = ['SAT_TTB','TTB_SAT','Other','TTB','Rand','WADD']
 
@@ -71,17 +74,18 @@ def exp1_strategy_table(human_file='../data/human/1.0/processed/trials.csv', sta
 
 	df['alpha'] = 1/df['alpha']
 
-	if print_summary: p_d.print_special('sigma')
+	if exp.stats.print_summary: p_d.print_special('Results for Exp. 1 strategy frequency post-hoc comparisons, and effect sizes', header=True)
+	if exp.stats.print_summary: p_d.print_special('sigma')
 	for g in strategies:
 		x = proportion_effectsize(np.mean(df[df['sigma']==75][g]), \
 			np.mean(df[df['sigma']==150][g]))
 		with open(dump_dir+g+'-sigma_postHoc-cohenD.txt', 'w') as f:
 			f.write('n/a & '+f'${x:.{2}}$')
-		if print_summary:
+		if exp.stats.print_summary:
 			print(f'{g} effect size: {x:.{2}}')
 	
 	for c in ['alpha','cost']:
-		if print_summary: p_d.print_special(c)
+		if exp.stats.print_summary: p_d.print_special(c)
 		cond_levels = df[c].sort_values().unique()
 		for g in strategies:
 			p_vals = []
@@ -105,11 +109,11 @@ def exp1_strategy_table(human_file='../data/human/1.0/processed/trials.csv', sta
 			cd_str = cd_str[:-2]+'$'
 			with open(dump_dir+g+'-'+c+'_postHoc-cohenD.txt', 'w') as f:
 				f.write(ph_str+' & '+cd_str)
-			if print_summary:
+			if exp.stats.print_summary:
 				print(g, 'significant post-hoc pairs: '+ph_str_, \
 						'effect sizes (adjacent pairs): '+cd_str.replace('$',''), sep='\n')
 
-	filenames = [stats_dir + f for f in[\
+	filenames = [dump_dir + f for f in[\
 				'SAT_TTB-sigma_postHoc-cohenD.txt',\
 				'TTB_SAT-sigma_postHoc-cohenD.txt',\
 				'TTB-alpha_postHoc-cohenD.txt',\
@@ -138,13 +142,19 @@ def exp1_strategy_table(human_file='../data/human/1.0/processed/trials.csv', sta
 
 	p_d.print_special('saved latex strategy table to '+latex_dir+'table_strategies.tex', False)
 
-def exp1_behavioral_features(human_file='../data/human/1.0/processed/trials.csv', stats_dir='../stats/exp1/', print_summary=True):
-	dump_dir, latex_dir = stats_dir+'dump/2/', stats_dir+'2/'
+def exp1_behavioral_features(exp=cfg.exp1):
+	pd.options.mode.chained_assignment = None
+	dump_dir, latex_dir = exp.stats+'dump/2/', exp.stats+'2/'
 	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
 	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
 	for exclude in [False, True]:
-		df = pd.read_csv(human_file, low_memory=False)
+		if exp.stats.print_summary:
+			exclude_str = ' (participants excluded)' if exclude else ''
+			p_d.print_special('Results for Exp. 1 linear regression of behavioral features on environment conditions, '+\
+				'main effects, post-hoc corrections for multiple comparisions, and effect sizes'+exclude_str, header=True)
+
+		df = pd.read_csv(exp.human, low_memory=False)
 		if exclude:
 			df = p_d.exclude_bad_participants(df)
 		exclude_str = '_exclude' if exclude else ''
@@ -209,7 +219,7 @@ def exp1_behavioral_features(human_file='../data/human/1.0/processed/trials.csv'
 				with open(dump_dir+p+exclude_str+'-'+c+'_cohenD.txt', 'w') as f:
 					f.write(cd_str)
 						
-				if print_summary:
+				if exp.stats.print_summary:
 					p_d.print_special('IV: '+p+', DV: '+c)
 					print('\n', \
 						res.summary(), \
@@ -265,18 +275,19 @@ def exp1_behavioral_features(human_file='../data/human/1.0/processed/trials.csv'
 		f.write(table_perf)
 	p_d.print_special('saved latex  table to '+latex_dir+'table_performance.tex', False)
 
-def exp2_strategies(human_file1='../data/human/2.3/processed/trials_exp.csv', human_file2='../data/human/2.3/processed/trials_con.csv', stats_dir='../stats/exp2/', print_summary=True):
-	dump_dir, latex_dir = stats_dir+'dump/1/', stats_dir+'1/'
+def exp2_strategies(exp=cfg.exp2):
+	dump_dir, latex_dir = exp.stats+'dump/1/', exp.stats+'1/'
 	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
 	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
-	df1 = pd.read_csv(human_file1, low_memory=False)
-	df2 = pd.read_csv(human_file2, low_memory=False)
+	df1 = pd.read_csv(exp.human_exp, low_memory=False)
+	df2 = pd.read_csv(exp.human_con, low_memory=False)
 
 	alphas = np.flip(np.sort(df1['alpha'].unique()))
 	costs = np.sort(df1['cost'].unique())
 
 	dof1, dof2 = 1, min(len(df1),len(df2))
+	if exp.stats.print_summary: p_d.print_special('Results for Exp. 2 group comparisons of strategy frequencies and effect sizes', header=True)
 	for s in ['TTB_SAT','SAT_TTB','TTB','WADD']:
 		for i, a in enumerate(alphas):
 			for j, c in enumerate(costs):
@@ -296,23 +307,24 @@ def exp2_strategies(human_file1='../data/human/2.3/processed/trials_exp.csv', hu
 				with open(f'{latex_dir}chi2-{s}-alpha{i}-cost{c}.txt', 'w') as f:
 					f.write(latex_str)
 
-				if print_summary:
+				if exp.stats.print_summary:
 					print(f'{s}-alpha{i}-cost{c}')
 					print(latex_str.replace('$','').replace('\\',''))
 
 	p_d.print_special('saved latex strategy chi-square stats to '+latex_dir, False)
 
-def exp2_behavioral_features(human_file1='../data/human/2.3/processed/trials_exp.csv', human_file2='../data/human/2.3/processed/trials_con.csv', stats_dir='../stats/exp2/', print_summary=True):
-	dump_dir, latex_dir = stats_dir+'dump/2/', stats_dir+'2/'
+def exp2_behavioral_features(exp=cfg.exp2):
+	dump_dir, latex_dir = exp.stats+'dump/2/', exp.stats+'2/'
 	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
 	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
-	df1 = pd.read_csv(human_file1, low_memory=False)
-	df2 = pd.read_csv(human_file2, low_memory=False)
+	df1 = pd.read_csv(exp.human_exp, low_memory=False)
+	df2 = pd.read_csv(exp.human_con, low_memory=False)
 
 	alphas = np.flip(np.sort(df1['alpha'].unique()))
 	costs = np.sort(df1['cost'].unique())
 
+	if exp.stats.print_summary: p_d.print_special('Results for Exp. 2 group comparisons of behavioral features and effect sizes', header=True)
 	for s in ['processing_pattern','click_var_outcome','click_var_gamble','nr_clicks','payoff_net_relative']:
 		dump_file = s in ['processing_pattern','click_var_outcome','click_var_gamble'] # results formated for a table, not in-text
 		for i, a in enumerate(alphas):
@@ -335,7 +347,7 @@ def exp2_behavioral_features(human_file1='../data/human/2.3/processed/trials_exp
 				with open(f'{out_dir}ttest-{s}-alpha{i}-cost{c}.txt', 'w') as f:
 					f.write(out_str)
 					
-				if print_summary:
+				if exp.stats.print_summary:
 					print(f'{s}-alpha{i}-cost{c}')
 					print(out_str.replace('$','').replace('\\','').replace(' &',','))
 
@@ -354,16 +366,16 @@ def exp2_behavioral_features(human_file1='../data/human/2.3/processed/trials_exp
 	'Behavioral feature & '+\
 	'\\begin{tabular}{@{}c@{}}Condition\\\\(dispersion, cost)\\end{tabular}& '+\
 	'$t$-statistic & $p$-value & '+\
-	'\\begin{tabular}{@{}c@{}}Effect size\\\\(Cohen\'s $d$)\\end{tabular}& '+\
+	'\\begin{tabular}{@{}c@{}}effect size\\\\(Cohen\'s $d$)\\end{tabular}\n'+\
 	'\\midrule\n'+\
 	'\\\\\n'.join([''.join(x) for x in zip(\
 										['Processing pattern']*4 + \
 										['Attribute variance']*4 + \
 										['Alternative variance']*4, \
 										[' & ']*12,\
-										[' \\begin{tabular}{@{}c@{}} '+y+' \\end{tabular} ' for y in \
-										['\\\\'.join(z) for z in zip(np.tile(['$\\alpha^{-1}=10^{-0.5}$','$\\alpha^{-1}=10^{0.5}$'],6).tolist(),
-																	 np.tile(['$\\lambda=1$']*2+['$\\lambda=4$']*2,3).tolist())]], \
+										[' \\begin{tabular}{@{}c@{}} '+y+' \\end{tabular}' for y in \
+											['\\\\'.join(z) for z in zip(np.tile(['$\\alpha^{-1}=10^{-0.5}$','$\\alpha^{-1}=10^{0.5}$'],6).tolist(),
+																		 np.tile(['$\\lambda=1$']*2+['$\\lambda=4$']*2,3).tolist())]], \
 										[' & ']*12,\
 										[open(filenames[i],'r').read() for i in range(len(filenames))])\
 					])+\
@@ -376,14 +388,14 @@ def exp2_behavioral_features(human_file1='../data/human/2.3/processed/trials_exp
 
 	p_d.print_special('saved latex table to '+latex_dir+'table_behavior.tex', False)
 
-def under_performance(human_file, stats_dir, exclude_participants=False):
-	dump_dir, latex_dir = stats_dir+'dump/3/', stats_dir+'3/'
+def under_performance(exp=cfg.exp1.human, exclude=False):
+	dump_dir, latex_dir = exp.stats+'dump/3/', exp.stats+'3/'
 	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
 	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
-	exclude_str = '' if not exclude_participants else '_exclude'
-	dat = eval(pd.read_csv(human_file, usecols=['under_performance'+exclude_str], low_memory=False).iloc[0][0])[0]
-	exp2_str = human_file[-8:-4] if 'exp2' in stats_dir else ''
+	exclude_str = '_exclude' if exclude else ''
+	dat = eval(pd.read_csv(exp, usecols=['under_performance'+exclude_str], low_memory=False).iloc[0][0])[0]
+	exp2_str = '' if exp.num==1 else '_'+exp.group
 
 	# model clicks - human clicks
 	x = dat['nr_clicks_dif']
@@ -467,11 +479,11 @@ def under_performance(human_file, stats_dir, exclude_participants=False):
 
 	p_d.print_special('saved under-performance files to '+latex_dir+'perf-reduc_....txt', False)
 
-def participant_demographics(human_file):
+def participant_demographics(exp=cfg.exp1):
 
-	participants = pd.read_csv(human_file, low_memory=False)
+	participants = pd.read_csv(exp.participants, low_memory=False)
 
-	p_d.print_special('Participant demographics from '+human_file)
+	p_d.print_special('Participant demographics from '+exp.participants, header=True)
 
 	nr_female = sum(participants['gender']=='female')
 	print(f'Participants: {len(participants)}',
@@ -482,7 +494,7 @@ def participant_demographics(human_file):
 		 f'Bonus: {participants.bonus.mean():.2f}, \
 			std: {participants.bonus.std():.2f}, \
 			range: {participants.bonus.min():.2f}-{participants.bonus.max():.2f}',
-		 f'Experiment length (minutes): {participants.total_time.mean()/60000:.2f}, \
+		 f'Experiment length (min.): {participants.total_time.mean()/60000:.2f}, \
 			std: {participants.total_time.std()/60000:.2f}, \
 			range: {participants.total_time.min()/60000:.2f}-{participants.total_time.max()/60000:.2f}', \
 		 sep='\n')

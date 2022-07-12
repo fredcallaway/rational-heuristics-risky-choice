@@ -1,4 +1,4 @@
-name: risky-choice2
+name: risky-choice
 channels:
   - defaults
 dependencies:
@@ -17,7 +17,6 @@ dependencies:
   - cffi=1.15.0=py37hca72f7f_0
   - chardet=3.0.4=py37hecd8cb5_1003
   - cloudpickle=2.0.0=pyhd3eb1b0_0
-  - conda=4.13.0=py37hecd8cb5_0
   - conda-package-handling=1.8.1=py37hca72f7f_0
   - cryptography=37.0.1=py37hf6deb26_0
   - cycler=0.11.0=pyhd3eb1b0_0
@@ -162,4 +161,4 @@ dependencies:
     - threadpoolctl==3.1.0
     - tzdata==2022.1
     - tzlocal==4.2
-prefix: /Users/paulkrueger/anaconda3/envs/risky-choice2
+prefix: /Users/paulkrueger/anaconda3/envs/risky-choice
