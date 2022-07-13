@@ -811,7 +811,7 @@ def exp2_condition_bars(exp=cfg.exp2):
 
 	params = ['nr_clicks','payoff_gross_relative','processing_pattern','click_var_outcome','click_var_gamble','nr_clicks','payoff_net_relative']
 	labels = ['Information Gathered','Relative Performance','Alternative vs. Attribute','Attribute Variance','Alternative Variance','Information Gathered','Net Relative Performance']
-	ylims = [(0,11),(0,1.03),(-1,0),(0,.2),(0,.06),(0,11),(-0.35,0.85)]
+	ylims = [(0,11),(0,1.03),(-1,0),(0,.2),(0,.06),(0,11),(-0.1,1)]
 	idxs = [[0,1],[2,3,4],[5,6]]
 
 	fontsize_ticks = 32
