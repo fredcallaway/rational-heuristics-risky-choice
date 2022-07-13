@@ -148,84 +148,84 @@ def exp1_behavioral_features(exp=cfg.exp1):
 	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
 	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
-	for exclude in [False, True]:
-		if exp.stats.print_summary:
-			exclude_str = ' (participants excluded)' if exclude else ''
-			p_d.print_special('Results for Exp. 1 linear regression of behavioral features on environment conditions, '+\
-				'main effects, post-hoc corrections for multiple comparisions, and effect sizes'+exclude_str, header=True)
+	# for exclude in [False, True]:
+	# 	if exp.stats.print_summary:
+	# 		exclude_str = ' (participants excluded)' if exclude else ''
+	# 		p_d.print_special('Results for Exp. 1 linear regression of behavioral features on environment conditions, '+\
+	# 			'main effects, post-hoc corrections for multiple comparisions, and effect sizes'+exclude_str, header=True)
 
-		df = pd.read_csv(exp.human, low_memory=False)
-		if exclude:
-			df = p_d.exclude_bad_participants(df)
-		exclude_str = '_exclude' if exclude else ''
+	# 	df = pd.read_csv(exp.human, low_memory=False)
+	# 	if exclude:
+	# 		df = p_d.exclude_bad_participants(df)
+	# 	exclude_str = '_exclude' if exclude else ''
 
-		cond_str = {'alpha': ['10^{-1.0}','10^{-0.5}','10^{.0}','10^{0.5}','10^{1.0}'],
-					'cost': ['0','1','2','4','8']}
+	# 	cond_str = {'alpha': ['10^{-1.0}','10^{-0.5}','10^{.0}','10^{0.5}','10^{1.0}'],
+	# 				'cost': ['0','1','2','4','8']}
 
-		df['alpha'] = 1 / df['alpha'] # dispersion is alpha^-1
-		# make sigma and alpha levels unit and linear
-		for i, s in enumerate(df['sigma'].sort_values().unique()):
-			df.loc[df['sigma']==s, 'sigma'] = i
-		df['alpha'] += 0.1 # avoid assigning integer alphas twice
-		for i, a in enumerate(df['alpha'].sort_values().unique()):
-			df.loc[df['alpha']==a, 'alpha'] = i
-		for p in ['nr_clicks','payoff_gross_relative','processing_pattern','click_var_gamble','click_var_outcome']:
-			for c in ['sigma','alpha','cost']:
+	# 	df['alpha'] = 1 / df['alpha'] # dispersion is alpha^-1
+	# 	# make sigma and alpha levels unit and linear
+	# 	for i, s in enumerate(df['sigma'].sort_values().unique()):
+	# 		df.loc[df['sigma']==s, 'sigma'] = i
+	# 	df['alpha'] += 0.1 # avoid assigning integer alphas twice
+	# 	for i, a in enumerate(df['alpha'].sort_values().unique()):
+	# 		df.loc[df['alpha']==a, 'alpha'] = i
+	# 	for p in ['nr_clicks','payoff_gross_relative','processing_pattern','click_var_gamble','click_var_outcome']:
+	# 		for c in ['sigma','alpha','cost']:
 				
-				# normalize for standardized regression coefficients
-				df_z = df.dropna(subset=[p])
-				df_z.loc[:, p] = (df_z[p] - df_z[p].mean())/df_z[p].std(ddof=0)
+	# 			# normalize for standardized regression coefficients
+	# 			df_z = df.dropna(subset=[p])
+	# 			df_z.loc[:, p] = (df_z[p] - df_z[p].mean())/df_z[p].std(ddof=0)
 				
-				# mixed-effects linear regression of behavioral features on environmental parameters
-				res = smf.mixedlm(p+'~'+c, df_z, groups=df_z['pid']).fit()
-				lm_str1, lm_str2 = f'$B={res.params[1]:.{2}}, p', f'= {res.pvalues[1]:.{2}}$' if res.pvalues[1]>=0.001 else '< 0.001$'
+	# 			# mixed-effects linear regression of behavioral features on environmental parameters
+	# 			res = smf.mixedlm(p+'~'+c, df_z, groups=df_z['pid']).fit()
+	# 			lm_str1, lm_str2 = f'$B={res.params[1]:.{2}}, p', f'= {res.pvalues[1]:.{2}}$' if res.pvalues[1]>=0.001 else '< 0.001$'
 				
-				dat = [df_z[df_z[c]==i].groupby('pid').mean()[p].values for i in np.sort(df_z[c].unique())]
+	# 			dat = [df_z[df_z[c]==i].groupby('pid').mean()[p].values for i in np.sort(df_z[c].unique())]
 			
-				# main effects, post-hoc comparisons, and effect sizes
-				if len(dat)==2:
-					F, P = ttest_ind(dat[0],dat[1])
-					dof = len(dat[0]) + len(dat[1]) - 2
-					me_str1, me_str2 = f'$t$({dof}) = {F:.2f},\\\\$p$ ',f'= {P:.2}' if P>=0.001 else '<0.001'
-					ph_str, tukey = 'n/a', ''
-				else:
-					F, P = f_oneway(dat[0],dat[1],dat[2],dat[3],dat[4])
-					dof = (4, sum([len(dat[i]) for i in range(len(dat))]) - 5)
-					me_str1, me_str2 = f'$F$({dof[0]},{dof[1]}) = {F:.2f},\\\\$p$ ',f'= {P:.2}' if P>=0.001 else '<0.001'
-					if P < 0.1:
-						tukey = pairwise_tukeyhsd(\
-								endog = np.concatenate(dat),
-								groups = np.concatenate([np.repeat(i,repeats=len(dat[i])) for i in range(len(dat))]),
-								alpha = 0.05)
-						# reject_list = [x[:2]+[x[-1]] for x in tukey.summary().data[1:] if abs(x[0]-x[1])==1] # report adjacent pairs only
-						reject = [x[-1] for x in tukey.summary().data[1:]] # report all pairs
-						pairs = [x[:2] for x in tukey.summary().data[1:]] # report all pairs
-						ph_str, ph_str_ = make_posthoc_str(reject, pairs, cond_str[c])
-					else:
-						tukey = ''
-						ph_str = 'n/a'
+	# 			# main effects, post-hoc comparisons, and effect sizes
+	# 			if len(dat)==2:
+	# 				F, P = ttest_ind(dat[0],dat[1])
+	# 				dof = len(dat[0]) + len(dat[1]) - 2
+	# 				me_str1, me_str2 = f'$t$({dof}) = {F:.2f},\\\\$p$ ',f'= {P:.2}' if P>=0.001 else '<0.001'
+	# 				ph_str, tukey = 'n/a', ''
+	# 			else:
+	# 				F, P = f_oneway(dat[0],dat[1],dat[2],dat[3],dat[4])
+	# 				dof = (4, sum([len(dat[i]) for i in range(len(dat))]) - 5)
+	# 				me_str1, me_str2 = f'$F$({dof[0]},{dof[1]}) = {F:.2f},\\\\$p$ ',f'= {P:.2}' if P>=0.001 else '<0.001'
+	# 				if P < 0.1:
+	# 					tukey = pairwise_tukeyhsd(\
+	# 							endog = np.concatenate(dat),
+	# 							groups = np.concatenate([np.repeat(i,repeats=len(dat[i])) for i in range(len(dat))]),
+	# 							alpha = 0.05)
+	# 					# reject_list = [x[:2]+[x[-1]] for x in tukey.summary().data[1:] if abs(x[0]-x[1])==1] # report adjacent pairs only
+	# 					reject = [x[-1] for x in tukey.summary().data[1:]] # report all pairs
+	# 					pairs = [x[:2] for x in tukey.summary().data[1:]] # report all pairs
+	# 					ph_str, ph_str_ = make_posthoc_str(reject, pairs, cond_str[c])
+	# 				else:
+	# 					tukey = ''
+	# 					ph_str = 'n/a'
 						
-				cd_str = '$'+', '.join([f'{p_d.cohen_d(dat[i],dat[i+1]):.2}' for i in range(len(dat)-1)])+'$'
+	# 			cd_str = '$'+', '.join([f'{p_d.cohen_d(dat[i],dat[i+1]):.2}' for i in range(len(dat)-1)])+'$'
 				
-				with open(latex_dir+p+exclude_str+'-'+c+'_mixedlm.txt', 'w') as f:
-					f.write(lm_str1+lm_str2)
+	# 			with open(latex_dir+p+exclude_str+'-'+c+'_mixedlm.txt', 'w') as f:
+	# 				f.write(lm_str1+lm_str2)
 					
-				with open(dump_dir+p+exclude_str+'-'+c+'_mainEffect.txt', 'w') as f:
-					f.write(me_str1+me_str2)
+	# 			with open(dump_dir+p+exclude_str+'-'+c+'_mainEffect.txt', 'w') as f:
+	# 				f.write(me_str1+me_str2)
 					
-				with open(dump_dir+p+exclude_str+'-'+c+'_postHoc.txt', 'w') as f:
-					f.write(ph_str)
+	# 			with open(dump_dir+p+exclude_str+'-'+c+'_postHoc.txt', 'w') as f:
+	# 				f.write(ph_str)
 					
-				with open(dump_dir+p+exclude_str+'-'+c+'_cohenD.txt', 'w') as f:
-					f.write(cd_str)
+	# 			with open(dump_dir+p+exclude_str+'-'+c+'_cohenD.txt', 'w') as f:
+	# 				f.write(cd_str)
 						
-				if exp.stats.print_summary:
-					p_d.print_special('IV: '+p+', DV: '+c)
-					print('\n', \
-						res.summary(), \
-						'main effect: '+me_str1.replace('$','').replace('\\',' ') + me_str2.replace('$',''), \
-						tukey, \
-						'effect sizes (adjacent pairs): '+cd_str.replace('$',''), '\n', sep='\n')
+	# 			if exp.stats.print_summary:
+	# 				p_d.print_special('IV: '+p+', DV: '+c)
+	# 				print('\n', \
+	# 					res.summary(), \
+	# 					'main effect: '+me_str1.replace('$','').replace('\\',' ') + me_str2.replace('$',''), \
+	# 					tukey, \
+	# 					'effect sizes (adjacent pairs): '+cd_str.replace('$',''), '\n', sep='\n')
 
 	p_d.print_special('saved latex behavioral feature regression stats to '+latex_dir, False)
 
@@ -366,7 +366,7 @@ def exp2_behavioral_features(exp=cfg.exp2):
 	'Behavioral feature & '+\
 	'\\begin{tabular}{@{}c@{}}Condition\\\\(dispersion, cost)\\end{tabular}& '+\
 	'$t$-statistic & $p$-value & '+\
-	'\\begin{tabular}{@{}c@{}}effect size\\\\(Cohen\'s $d$)\\end{tabular}\n'+\
+	'\\begin{tabular}{@{}c@{}}effect size\\\\(Cohen\'s $d$)\\end{tabular}\\\\\n'+\
 	'\\midrule\n'+\
 	'\\\\\n'.join([''.join(x) for x in zip(\
 										['Processing pattern']*4 + \
@@ -513,7 +513,7 @@ def make_posthoc_str(reject, pairs, names):
 		posthoc_str = '\\begin{tabular}{@{}c@{}}'
 	for i,pair in enumerate(pairs):
 		if reject[i]:
-			if sum(reject[:i+1]) == 4: posthoc_str += '\\\\'
+			if sum(reject[:i+1]) == 3: posthoc_str += '\\\\'
 			posthoc_str += '$'+str(names[pair[0]])+\
 					' \& '+str(names[pair[1]])+'$, '
 	posthoc_str = posthoc_str[:-2] + '\\end{tabular}'
