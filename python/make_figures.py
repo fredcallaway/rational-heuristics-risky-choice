@@ -483,7 +483,7 @@ def strategyVsKmeans_confusion_matrix(exp=cfg.exp1, exclude=False):
 		for i in range(confusion_mat.shape[0]):
 			for j in range(confusion_mat.shape[1]):
 				ax.text(j, i, '{:.1f}'.format(pct[i,j])+'%',ha="center", va="center", color="w",fontsize=fontsize_ticks,fontweight='bold')
-		plt.xticks(range(confusion_mat.shape[1]),labels=strat_labels[:confusion_mat.shape[1]],rotation=90,fontsize=fontsize_ticks)
+		plt.xticks(range(confusion_mat.shape[1]),labels=strat_labels[:confusion_mat.shape[1]],rotation=30,fontsize=fontsize_ticks)
 		plt.yticks(range(confusion_mat.shape[0]),labels=clust_labels[:confusion_mat.shape[0]],fontsize=fontsize_ticks)
 		if plot_idx==0: plt.ylabel(r'$k$'+'-means Cluster', fontsize=fontsize_labels)
 		plt.xlabel('Strategy', fontsize=fontsize_labels)
@@ -491,6 +491,7 @@ def strategyVsKmeans_confusion_matrix(exp=cfg.exp1, exclude=False):
 		plt.title(ttl, fontsize=fontsize_labels)
 		cbar = plt.colorbar(fraction=0.04, pad=0.04)
 		cbar.ax.tick_params(labelsize=20)
+		if plot_idx==1: cbar.set_label('Number of trials\n', rotation=270, fontsize=30, labelpad=25)
 
 		res = cohens_kappa(confusion_mat[:,:confusion_mat.shape[0]])
 		r1, r2, r3 = res['kappa'], res['kappa_low'], res['kappa_upp']
@@ -615,7 +616,7 @@ def under_performance_byStrat(exp=cfg.exp1, exclude=False):
 			for j in range(np.shape(mat)[1]):
 				fmt = '{:.1f}' if text0[i,j]!=0 else '{:.0f}'
 				ax.text(j, i, fmt.format(text0[i,j])+'%',ha="center", va="center", color="w",fontsize=fontsize_ticks,fontweight='bold')
-		plt.xticks(range(len(mat)),labels=strat_labels[:len(mat)],rotation=90,fontsize=fontsize_ticks)
+		plt.xticks(range(len(mat)),labels=strat_labels[:len(mat)],rotation=30,fontsize=fontsize_ticks)
 		plt.yticks(range(len(mat)),labels=strat_labels[:len(mat)],fontsize=fontsize_ticks)
 		plt.xlabel('Participant strategy', fontsize=fontsize_labels)
 		if plot_ix==0:
@@ -747,14 +748,14 @@ def exp2_strategies(exp=cfg.exp2):
 	plt.subplots_adjust(wspace=0.075, hspace=0.075)
 
 	width = 0.7
-	labels = ['Model','Exp.','Control']
+	labels = ['Model','Experimental','Control']
 	for i, alpha in enumerate(np.flip(sorted(df1['alpha'].unique()))): # flip for inverse alpha
 		for j, cost in enumerate(sorted(df1['cost'].unique())):
 			plt.sca(plt.subplot(gs[i+2*j]))
 			plt.grid(axis='y')
 			plt.yticks(fontsize=fontsize_ticks)
 			plt.xlim([-.5,2.5])
-			plt.ylim((0,1.02))
+			plt.ylim((0,1.05))
 			for x, df in enumerate([df1, df2, df3]):
 				plt.gca().set_prop_cycle(None)
 				dat = [df[np.isclose(df['alpha'],alpha,atol=0.1) & (df['cost']==cost)].mean()[s] for s in strategies]
@@ -775,10 +776,10 @@ def exp2_strategies(exp=cfg.exp2):
 	plt.tick_params(axis='x',which='both',bottom=False,labelbottom=False) 
 	plt.tick_params(axis='y',which='both',left=False,labelleft=False) 
 	plt.sca(plt.subplot(gs[2]))
-	plt.xticks([0,1,2],labels,rotation=90,fontsize=fontsize_ticks)
+	plt.xticks([0,1,2],labels,rotation=30,fontsize=fontsize_ticks)
 	plt.yticks(fontsize=fontsize_ticks)
 	plt.sca(plt.subplot(gs[3]))
-	plt.xticks([0,1,2],labels,rotation=90,fontsize=fontsize_ticks)
+	plt.xticks([0,1,2],labels,rotation=30,fontsize=fontsize_ticks)
 	plt.tick_params(axis='y',which='both',left=False,labelleft=False) 
 
 	b1 = plt.subplot(gs[1]).get_position().bounds
@@ -786,12 +787,16 @@ def exp2_strategies(exp=cfg.exp2):
 	b3 = plt.subplot(gs[3]).get_position().bounds
 	midx = (b3[0]+b3[2]-b2[0])/2
 	midy = (b1[1]+b1[3]-b2[1])/2
-	fig.text(b2[0]+midx, 0.01, 'Group', fontsize=fontsize_labels, ha='center', va='center')
+	# fig.text(b2[0]+midx, 0.01, 'Group', fontsize=fontsize_labels, ha='center', va='center')
 	fig.text(b2[0]-0.06, b2[1]+midy, 'Strategy Frequency', fontsize=fontsize_labels, ha='center', va='center', rotation='vertical', fontweight='bold')
-	fig.text(b2[0]+midx, 0.94, 'Dispersion', fontsize=fontsize_labels, ha='center', va='center')
+	# fig.text(b2[0]+midx, 0.94, 'Dispersion', fontsize=fontsize_labels, ha='center', va='center')
+	fig.text(b2[0]+midx-midx/2, 0.94, 'Low Dispersion', fontsize=fontsize_labels, ha='center', va='center')
+	fig.text(b2[0]+midx+midx/2, 0.94, 'High Dispersion', fontsize=fontsize_labels, ha='center', va='center')
 	fig.text(b2[0]+midx-midx/2, 0.905, '['+r'$\alpha^{-1}=10^{-0.5}$]', fontsize=fontsize_labels, ha='center', va='center')
 	fig.text(b2[0]+midx+midx/2, 0.905, '['+r'$\alpha^{-1}=10^{0.5}$]', fontsize=fontsize_labels, ha='center', va='center')
-	fig.text(b1[0]+b1[2]+0.05, b2[1]+midy, 'Cost', fontsize=fontsize_labels, ha='center', va='center', rotation=270)
+	# fig.text(b1[0]+b1[2]+0.05, b2[1]+midy, 'Cost', fontsize=fontsize_labels, ha='center', va='center', rotation=270)
+	fig.text(b1[0]+b1[2]+0.05, b2[1]+midy+midy/2, 'Low Cost', fontsize=fontsize_labels, ha='center', va='center', rotation=270)
+	fig.text(b1[0]+b1[2]+0.05, b2[1]+midy-midy/2, 'High Cost', fontsize=fontsize_labels, ha='center', va='center', rotation=270)
 	fig.text(b1[0]+b1[2]+0.02, b2[1]+midy+midy/2, '[$\lambda=1$]', fontsize=fontsize_labels, ha='center', va='center', rotation=270)
 	fig.text(b1[0]+b1[2]+0.02, b2[1]+midy-midy/2, '[$\lambda=4$]', fontsize=fontsize_labels, ha='center', va='center', rotation=270)
 
