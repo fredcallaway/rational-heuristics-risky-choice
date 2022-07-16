@@ -60,6 +60,10 @@ end
 
 function optimize_bmps(m::MetaMDP; α=Inf, n_iter=500, seed=nothing, n_roll=10000,
                   verbose=false, parallel=true, repetitions=1)
+    if m.cost ≈ 0
+        return BMPSPolicy(m, [-1., 0, 0, 0])  # always click
+    end
+
     if seed != nothing
         Random.seed!(seed)
     end
