@@ -598,6 +598,8 @@ def under_performance_byStrat(exp=cfg.exp1, exclude=False):
 
 	strat_labels = ['SAT-TTB+','SAT-TTB','TTB','WADD','random','other']
 
+	colorbar_max = max(np.max(dat1['trial_counts'] / np.sum(dat1['trial_counts'])), \
+						np.max(dat2['trial_counts'] / np.sum(dat2['trial_counts'])))
 	for plot_ix, dat in enumerate([dat1, dat2]):
 		if exp.num==1:
 			exp2_str = ''
@@ -608,8 +610,10 @@ def under_performance_byStrat(exp=cfg.exp1, exclude=False):
 
 		ax = fig.add_subplot(1,2,plot_ix+1)
 
-		mat = dat['trial_counts']
-		plt.imshow(mat, cmap='viridis') # cividis, plasma, viridis
+		mat = dat['trial_counts'] / np.sum(dat['trial_counts'])
+		im = plt.imshow(mat, cmap='viridis', norm=Colors.PowerNorm(vmin=0, vmax=colorbar_max, gamma=0.35))
+		# clrs = get_cmap("viridis", norm=Colors.PowerNorm(vmin=0, vmax=colorbar_max, gamma=.1))
+		# im = plt.imshow(mat, cmap=clrs, vmin=0, vmax=colorbar_max)
 		ax = plt.gca()
 		text0 = np.round(100*np.array(dat['imperfect_strat_selec_and_exec_by_strat']), decimals=1); text0[text0==0]=0
 		for i in range(np.shape(mat)[0]):
@@ -617,22 +621,23 @@ def under_performance_byStrat(exp=cfg.exp1, exclude=False):
 				fmt = '{:.1f}' if text0[i,j]!=0 else '{:.0f}'
 				ax.text(j, i, fmt.format(text0[i,j])+'%',ha="center", va="center", color="w",fontsize=fontsize_ticks,fontweight='bold')
 		plt.xticks(range(len(mat)),labels=strat_labels[:len(mat)],rotation=30,fontsize=fontsize_ticks)
-		plt.yticks(range(len(mat)),labels=strat_labels[:len(mat)],fontsize=fontsize_ticks)
 		plt.xlabel('Participant strategy', fontsize=fontsize_labels)
 		if plot_ix==0:
+			plt.yticks(range(len(mat)),labels=strat_labels[:len(mat)],fontsize=fontsize_ticks)
 			plt.ylabel('Model strategy', fontsize=fontsize_labels)
-		if plot_ix==0:
 			ttl = 'Experimental group' if exp2_str=='_exp' else 'All participants'
 		else:
+			plt.tick_params(axis='y',which='both',left=False,labelleft=False)
 			ttl = 'Control group' if exp2_str=='_con' else 'Participants excluded'
 		plt.title(ttl, fontsize=fontsize_labels)
-		cbar = plt.colorbar(fraction=.045)
-		cbar.ax.tick_params(labelsize=20)
-		if plot_ix==1:
-			cbar.set_label('Number of trials\n', rotation=270, fontsize=30, labelpad=25)
-		
-	plt.text(-2.1,-1.25, 'Sources of Imperfect Strategy Selection and Execution\n[% Model Net Performance]', fontsize=fontsize_labels, va='center',ha='center', fontweight='bold')
-	plt.subplots_adjust(wspace=0.38)
+	plt.text(-.78,-1.25, 'Sources of Imperfect Strategy Selection and Execution\n[% Model Net Performance]', fontsize=fontsize_labels, va='center',ha='center', fontweight='bold')
+	plt.subplots_adjust(wspace=0.1)
+	fig.subplots_adjust(right=0.85)
+	cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+	plt.axis('off')
+	cbar = plt.colorbar(im, fraction=.35)
+	cbar.ax.tick_params(labelsize=24)
+	cbar.set_label('Fraction of trials', rotation=270, fontsize=30, labelpad=25)
 
 	if exp.figs.save:
 		plt.savefig(exp.figs+'performance_strategy_sources'+exclude_str+'.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')

@@ -197,9 +197,13 @@ def append_R_features(df):
 	for i, a in enumerate(np.flip(df['alpha'].sort_values().unique())):
 		df.loc[df['R_alpha']==a, 'R_alpha'] = i
 
+	df['R_cost'] = df['cost']
+	for i, a in enumerate(np.flip(df['cost'].sort_values().unique())):
+		df.loc[df['R_cost']==a, 'R_cost'] = i
+
 	df['R_sigma'] = df['R_sigma'].astype(float)
 	df['R_alpha'] = df['R_alpha'].astype(float)
-	df['R_cost'] = df['cost'].astype(float)
+	df['R_cost'] = df['R_cost'].astype(float)
 
 	return df
 
