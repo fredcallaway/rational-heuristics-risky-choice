@@ -12,19 +12,18 @@ using DataFramesMeta
     include("utils.jl")
     include("data.jl")
 end
-mkpath("tmp/policies")
 
 @everywhere id(m::MetaMDP) = join([round(m.weight_dist.alpha[1]; digits=3), m.reward_dist.σ, m.cost], "-")
 
 # %% ==================== setup ====================
+# push!(ARGS, "2", "TEST")
+EXPERIMENT = parse(Int, ARGS[1])
+RUN = ARGS[2]
 
-version = isempty(ARGS) ? "1.0" : ARGS[1]
-implicit_costs = [0:0.1:3; 4:17]
-experiment = startswith(version, "2") ? 2 : 1
-if experiment == 2
-    implicit_costs = -3:0.1:3
-end
-@info "Running model" version implicit_costs
+version = ["1.0", "2.3"][EXPERIMENT]
+implicit_costs = 0:0.1:3
+
+@info "Running model" EXPERIMENT RUN
 
 participants = CSV.read("../data/human/$version/participants.csv", DataFrame);
 
@@ -46,19 +45,20 @@ all_mdps = map(Iterators.product(alphas, sigmas, costs)) do (alpha, sigma, cost)
     )
 end |> collect;
 
+m = all_mdps[1]
+pol = optimize_bmps(m)
 
 # %% ==================== policy optimization ====================
 
 # set parameters for bayesian optimization
-@everywhere opt_kws = (seed=1, n_iter=500, n_roll=10000, α=100)
-serialize("tmp/opt_kws", opt_kws)
+@everywhere opt_kws = (seed=1, n_iter=500, n_roll=10000, α=100, parallel=false)
 
 # optimize! (this takes 24 hours on a 48 core machine)
-mkpath("tmp/policies")
+mkpath("tmp/$RUN/policies")
 policies = @showprogress "Policies " pmap(all_mdps; retry_delays=zeros(3)) do m
     try
-        cache("tmp/policies/" * id(m)) do
-            error("Policy not found")  # should already be computed
+        cache("tmp/$RUN/policies/" * id(m)) do
+            # error("Policy not found")  # should already be computed
             optimize_bmps(m; opt_kws..., verbose=false)
         end
     catch err
@@ -78,7 +78,6 @@ trial_data = @chain "../data/human/$version/trials.csv" begin
     CSV.read(DataFrame)
     @rsubset :block == "test"
     @rtransform :n_click = length(JSON.parse(:clicks))
-    # @rtransform :n_click = Int(:click_cost / :cost)
 end
 
 trial_data = @chain trial_data begin
@@ -87,7 +86,7 @@ trial_data = @chain trial_data begin
     rightjoin(trial_data, on=:pid)
 end
 
-if experiment == 2
+if EXPERIMENT == 2
     bad_pids = @chain "
         1  17  30  33  35  60  79 109 110 119 127 132 171
         176 186 188 197 199 202 208 212 228 236 250 252 263
@@ -138,7 +137,7 @@ function compute_model_nclick(trial_data)
     end
 end
 
-nclick_data = cache("tmp/nclick-$version") do
+nclick_data = cache("tmp/$RUN/nclick-$version") do
     compute_model_nclick(trial_data)
 end
 model_nclick = Dict(nclick_data[:])
@@ -176,30 +175,34 @@ function write_simulation(path, trials; fit_cost=false, N=1000)
         n_human = trial_counts[(t.sigma, t.cost, t.problem_id)]
         res = (;t.problem_id, t.sigma, t.alpha, t.cost, t.probabilities, t.payoff_matrix, 
                 uncovered, n_human)
-        write("$path/$(t.problem_id)-$(t.cost)-$(t.sigma).json", JSON.json(res))
+        write("$path/$(t.problem_id)-$(t.cost)-$(t.sigma).json", json(res))
     end
-    nothing
+    implicit_cost
 end
 
 
-if experiment == 1
-    base = "../data/model/exp1"
+if EXPERIMENT == 1
+    base = "../data/model/$RUN/exp1"
     write_simulation(base, trial_data)
-    write_simulation("$(base)_fitcost", trial_data; fit_cost=true)
+    full = write_simulation("$(base)_fitcost", trial_data; fit_cost=true)
     excl_trial_data = @rsubset(trial_data, !:is_random)
-    write_simulation("$(base)_fitcost_exclude", excl_trial_data; fit_cost=true)
+    exclude = write_simulation("$(base)_fitcost_exclude", excl_trial_data; fit_cost=true)
+    @chain (;full, exclude) json write("../data/model/$RUN/exp1_costs.json", _)
+else @assert EXPERIMENT == 2
+    base = "../data/model/$RUN/exp2"
+    write_simulation(base, trial_data)
 
-else @assert experiment == 2
-    base = "../data/model/exp2"
-    # write_simulation(base, trial_data)
-
-    for (key, td) in pairs(groupby(trial_data, :display_ev))
+    costs = map(pairs(groupby(trial_data, :display_ev))) do (key, td)
         cond = key.display_ev ? "exp" : "con"
-        # write_simulation("$(base)_$(cond)_fitcost", td; fit_cost=true)
+        full = write_simulation("$(base)_$(cond)_fitcost", td; fit_cost=true)
+        
         excl_td = @rsubset(td, !:is_random)
-        # write_simulation("$(base)_$(cond)_fitcost_exclude", excl_td; fit_cost=true)
+        exclude = write_simulation("$(base)_$(cond)_fitcost_exclude", excl_td; fit_cost=true)
         
         excl_td = @rsubset(td, !:low_performance)
-        write_simulation("$(base)_$(cond)_fitcost_exclude_alt", excl_td; fit_cost=true)
+        exclude_alt = write_simulation("$(base)_$(cond)_fitcost_exclude_alt", excl_td; fit_cost=true)
+
+        cond => (;full, exclude, exclude_alt)
     end
+    @chain costs Dict json write("../data/model/$RUN/exp2_costs.json", _)
 end
