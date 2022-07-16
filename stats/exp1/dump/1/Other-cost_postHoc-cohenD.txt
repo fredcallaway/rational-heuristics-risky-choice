@@ -1,0 +1,1 @@
+\begin{tabular}{@{}c@{}}all pairs except\\$2 \& 4$\end{tabular} & $-0.15, 0.055, 0.017, 0.031$

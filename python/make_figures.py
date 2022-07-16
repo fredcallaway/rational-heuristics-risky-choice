@@ -1,23 +1,23 @@
+import os
 import pandas as pd
 import numpy as np
+import pickle
+from ast import literal_eval
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
-import seaborn as sn;
-import pdb
-import pickle
-import process_data as p_d
-import os
 from matplotlib import colors as Colors
-from matplotlib import cm
-from ast import literal_eval
-import time
-from collections import defaultdict
+from matplotlib.cm import get_cmap
+import seaborn as sn
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from statsmodels.stats.inter_rater import cohens_kappa
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+import process_data as p_d
+import cfg
 
-def centroids(model_file, human_file, fig_dir=None, save=False):
-	from mpl_toolkits.axes_grid1 import make_axes_locatable
+def exp1_centroids(exp=cfg.exp1):
 
-	df1 = pd.read_csv(model_file)
-	df2 = pd.read_csv(human_file)
+	df1 = pd.read_csv(exp.model, low_memory=False)
+	df2 = pd.read_csv(exp.human, low_memory=False)
 
 	centers1 = eval(df1['cluster_centers'].iloc[0])
 	centers2 = eval(df2['cluster_centers'].iloc[0])
@@ -69,16 +69,16 @@ def centroids(model_file, human_file, fig_dir=None, save=False):
 	fig.text(0.5, 0.04, 'Total prob. of observed outcomes', fontsize=fontsize_labels, ha='center', va='center')
 	fig.text(0.087, 0.5, 'Prob. of outcome', fontsize=fontsize_labels, ha='center', va='center', rotation='vertical')
 
-	if save:
-		if not os.path.exists(fig_dir): os.makedirs(fig_dir)
-		plt.savefig(fig_dir+'centroids.png', bbox_inches='tight', pad_inches=0.05, facecolor='w')
+	if exp.figs.save:
+		plt.savefig(exp.figs+'centroids.png', bbox_inches='tight', pad_inches=0.05, facecolor='w')
+		p_d.print_special('saved figure to '+exp.figs+'centroids.png', False)
 	
-	plt.show()
+	if exp.figs.show: plt.show()
 
-def strategies(model_file, human_file, fig_dir=None, save=False):
+def exp1_strategies(exp=cfg.exp1):
 
-	df1 = pd.read_csv(model_file)
-	df2 = pd.read_csv(human_file)
+	df1 = pd.read_csv(exp.model, low_memory=False)
+	df2 = pd.read_csv(exp.human, low_memory=False)
 
 	fontsize_ticks = 32
 	fontsize_labels = 42
@@ -177,13 +177,13 @@ def strategies(model_file, human_file, fig_dir=None, save=False):
 	box = ax.get_position()
 	ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 	
-	if save:
-		if not os.path.exists(fig_dir): os.makedirs(fig_dir)
-		plt.savefig(fig_dir+'strategies.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
+	if exp.figs.save:
+		plt.savefig(exp.figs+'strategies.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
+		p_d.print_special('saved figure to '+exp.figs+'strategies.png', False)
 
-	plt.show()   
+	if exp.figs.show: plt.show()   
 
-def heatmaps(model_file, human_file, fig_dir=None, save=False):
+def exp1_heatmaps(exp=cfg.exp1):
 
 	paramL = ['nr_clicks','TTB','SAT_TTB','click_var_outcome','payoff_gross_relative','payoff_gross_relative']
 	paramR = ['processing_pattern','WADD','TTB_SAT','click_var_gamble','payoff_gross_relative','payoff_gross_relative']
@@ -193,10 +193,10 @@ def heatmaps(model_file, human_file, fig_dir=None, save=False):
 
 	for p in range(len(paramL)):
 	
-		df1 = pd.read_csv(model_file)
-		df2 = pd.read_csv(human_file)
+		df1 = pd.read_csv(exp.model, low_memory=False)
+		df2 = pd.read_csv(exp.human, low_memory=False)
 		if exclude[p]:
-			df2 = p_d.remove_rand_participants(df2)
+			df2 = p_d.exclude_bad_participants(df2)
 			exclude_str = '_exclude'
 		else:
 			exclude_str = ''
@@ -221,10 +221,6 @@ def heatmaps(model_file, human_file, fig_dir=None, save=False):
 		datTL = dat
 
 		plt.sca(plt.subplot(gs[6]))
-		# if titleR[p] == 'w/ implicit cost':
-		# 	df1 = pd.read_csv(model_file.replace('exp1','exp1_fitcost'+exclude_str))
-
-		# df1[paramR[p]] = df1[paramR[p]] * df1['trial_weight']
 		dat = np.reshape(df1.groupby(['sigma','alpha','cost'])[paramR[p]].mean().values, (2,5,5))
 		cb_range = [np.min(dat), np.max(dat)]
 		ax[2] = sn.heatmap(np.flip(dat[0],axis=0), vmin=cb_range[0], vmax=cb_range[1], cmap='rocket_r', cbar=False)
@@ -327,32 +323,15 @@ def heatmaps(model_file, human_file, fig_dir=None, save=False):
 		else:
 			plt.figtext(r, pts_[11], r'Participants $\minus$ Model', ha='center', va='bottom', fontsize=titlesize, fontweight='bold')
 
-		if save:
-			if not os.path.exists(fig_dir): os.makedirs(fig_dir)
-			ttl = fig_dir+'heatmaps_'+paramL[p]+'__'+paramR[p]+exclude_str+'.png'
+		if exp.figs.save:
+			ttl = exp.figs+'heatmaps_'+paramL[p]+'__'+paramR[p]+exclude_str+'.png'
 			plt.savefig(ttl.replace(' ','_'), bbox_inches='tight', pad_inches=0.05, facecolor='w')
+			p_d.print_special('saved figure to '+ttl.replace(' ','_'), False)
 
-		plt.show()
+		if exp.figs.show: plt.show()
 
-def condition_lines(model_file, human_file, fig_dir=None, save=False):
+def exp1_condition_lines(exp=cfg.exp1):
 
-	# params = ['nr_clicks','processing_pattern',\
-	# 		'click_var_outcome','click_var_gamble',\
-	# 		'payoff_gross_relative','payoff_gross_relative',\
-	# 		'payoff_gross_relative','payoff_gross_relative',\
-	# 		'payoff_net_relative','payoff_net_relative',\
-	# 		'payoff_net_relative','payoff_net_relative']
-	# labels = ['Information Gathered','Alternative vs. Attribute',\
-	# 		'Attribute Variance','Alternative Variance',\
-	# 		'Relative Performance','w/ implicit cost',\
-	# 		'Relative Performance\n(Participants excluded)','w/ implicit cost',\
-	# 		'Net Relative Performance','w/ implicit cost',\
-	# 		'Net Relative Performance\n(Participants excluded)','w/ implicit cost']
-	# # fitcost_and_exclude = [False,False,False,False,False,True,False,True]
-	# fitcost = [False]*4 + [False,True]*4
-	# exclude = [False]*4 + ([False]*2 + [True]*2)*2
-	# ylims = [(2,16),(-1,-.3),(0,.2),(0,.06),(0,1.03),(0,1.03),(0,1.15),(0,1.15),(0,1.03),(0,1.03),(0,1.15),(0,1.15)]
-	# idxs = [[0,1],[2,3],[4,5],[6,7],[8,9],[10,11]]
 	params = ['nr_clicks','processing_pattern',\
 			'click_var_outcome','click_var_gamble',\
 			'payoff_gross_relative','payoff_gross_relative',\
@@ -361,8 +340,7 @@ def condition_lines(model_file, human_file, fig_dir=None, save=False):
 			'Attribute Variance','Alternative Variance',\
 			'Relative\nPerformance','Relative Performance\n(Participants excluded)',\
 			'Net Relative\nPerformance','Net Relative Performance\n(Participants excluded)']
-	# fitcost_and_exclude = [False,False,False,False,False,True,False,True]
-	# fitcost = [False]*4 + [False,True]*4
+
 	exclude = [False]*4 + [False,True]*2
 	ylims = [(2,16),(-1,-.3),(0,.2),(0,.06),(0,1.15),(0,1.15),(0,1.15),(0,1.15)]
 	idxs = [[0,1],[2,3],[4,5],[6,7]]
@@ -378,42 +356,15 @@ def condition_lines(model_file, human_file, fig_dir=None, save=False):
 		perf = []
 		for p_, p in enumerate(idx): # seperate rows of figure
 
-			# if fitcost[p] and exclude[p]:
-			# 	df1 = pd.read_csv(model_file.replace('exp1','exp1_fitcost_exclude'))
-			# elif fitcost[p]:
-			# 	df1 = pd.read_csv(model_file.replace('exp1','exp1_fitcost'))
-			# else:
-			# 	df1 = pd.read_csv(model_file)
-			# df2 = pd.read_csv(human_file)
-			# if exclude[p]:
-			# 	df2 = p_d.remove_rand_participants(df2)
-			# 	exclude_str = '_exclude'
-			# else:
-			# 	exclude_str = ''
-
-			df1 = pd.read_csv(model_file)
-			df2 = pd.read_csv(human_file)
+			df1 = pd.read_csv(exp.model, low_memory=False)
+			df2 = pd.read_csv(exp.human, low_memory=False)
 			if exclude[p]:
-				# df1_fitcost = pd.read_csv(model_file.replace('exp1','exp1_fitcost_exclude'))
-				# df1_fitcost[params[p]] = df1_fitcost[params[p]] * df1_fitcost['trial_weight'] # it's implied by the directory name that the weights are for excluded participants
 				df1[params[p]] = df1[params[p]] * df1['trial_weight_exclude']
-				df2 = p_d.remove_rand_participants(df2)
+				df2 = p_d.exclude_bad_participants(df2)
 				exclude_str = '_exclude'
 			else:
-				# df1_fitcost = pd.read_csv(model_file.replace('exp1','exp1_fitcost'))
-				# df1_fitcost[params[p]] = df1_fitcost[params[p]] * df1_fitcost['trial_weight_exclude']
 				df1[params[p]] = df1[params[p]] * df1['trial_weight']
 				exclude_str = ''
-
-			# if fitcost_and_exclude[p]:
-			# 	df1 = pd.read_csv(model_file.replace('exp1','exp1_fitcost_exclude'))
-			# 	df2 = pd.read_csv(human_file)
-			# 	df2 = p_d.remove_rand_participants(df2)
-			# else:
-			# 	df1 = pd.read_csv(model_file)
-			# 	df2 = pd.read_csv(human_file)
-			# trial_weight_str = 'trial_weight'+exclude_str if not (fitcost[p] and exclude[p]) else 'trial_weight' # it's not in the column name for exp1_fitcost_exclude, since it's implied in the firectory name
-			# df1[params[p]] = df1[params[p]] * df1[trial_weight_str]
 
 			plt.sca(plt.subplot(gs[3*p_]))
 			dat = df1.groupby('sigma')[params[p]].mean().values
@@ -466,7 +417,6 @@ def condition_lines(model_file, human_file, fig_dir=None, save=False):
 			else:
 				plt.tick_params(axis='both',which='both',left=False,labelleft=False,bottom=False,labelbottom=False)
 
-			# if big:
 			ax = plt.subplot(gs[3*p_+2])
 			box = ax.get_position()
 			ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
@@ -476,18 +426,14 @@ def condition_lines(model_file, human_file, fig_dir=None, save=False):
 				else:
 					ax.legend(['Model','Participants'], fontsize=fontsize_legend, loc='lower left', bbox_to_anchor=(1, 0.5))
 
-		if save:
-			if not os.path.exists(fig_dir): os.makedirs(fig_dir)
+		if exp.figs.save:
 			ttl = '__'.join(params[idx[0]:idx[-1]+1])+exclude_str+'.png'
-			plt.savefig(fig_dir+ttl, bbox_inches='tight', pad_inches=0.05, facecolor='w')
+			plt.savefig(exp.figs+ttl, bbox_inches='tight', pad_inches=0.05, facecolor='w')
+			p_d.print_special('saved figure to '+exp.figs+ttl, False)
 
-		plt.show()
+		if exp.figs.show: plt.show()
 
-def strategyVsKmeans_confusion_matrix(model_file, human_file, fig_dir=None, save=False):
-	from statsmodels.stats.inter_rater import cohens_kappa
-
-	df1 = pd.read_csv(model_file)
-	df2 = pd.read_csv(human_file)
+def strategyVsKmeans_confusion_matrix(exp=cfg.exp1, exclude=False):
 
 	fontsize_ticks = 32
 	fontsize_labels = 42
@@ -498,12 +444,19 @@ def strategyVsKmeans_confusion_matrix(model_file, human_file, fig_dir=None, save
 	labels = [['TTB','WADD','SAT-TTB','SAT-TTB+','other'],
 			['TTB','WADD','SAT-TTB','SAT-TTB+','random','other']]
 
-	for isHuman, df in enumerate([df1, df2]):
-		strats = strategies[isHuman]
-		strat_labels = labels[isHuman]
+	fig = plt.figure(figsize=(32,16))
+
+	exclude_str = '' if not exclude else '_exclude'
+	for plot_idx, dat in enumerate([exp.model, exp.human]):
+		df = pd.read_csv(dat, low_memory=False)
+
+		plt.subplot(1,2,plot_idx+1)
+
+		strats = strategies[dat.isHuman]
+		strat_labels = labels[dat.isHuman]
 
 		tmp = pd.DataFrame(columns=['strategy','km_strategy'])
-		if isHuman:
+		if dat.isHuman:
 			tmp['strategy'] = df['strategy'].values
 			tmp['km_strategy'] = df['km_strategy'].values
 		else:
@@ -516,11 +469,12 @@ def strategyVsKmeans_confusion_matrix(model_file, human_file, fig_dir=None, save
 		for i, s in enumerate(strats):
 			idx = tmp['km_strategy'] == s
 			for j, s_ in enumerate(strats):
-				confusion_mat[i,j] = sum(tmp[idx]['strategy'] == s_)
+				if dat.isHuman:
+					confusion_mat[i,j] = sum(tmp[idx]['strategy'] == s_)
+				else:
+					confusion_mat[i,j] = sum((tmp[idx]['strategy'] == s_))# * (df[idx]['trial_weight'+exclude_str])) + sum((tmp[idx]['strategy'] != s_) * (1-df[idx]['trial_weight'+exclude_str]))
 		confusion_mat = confusion_mat[:-1,:]
 		pct = confusion_mat/sum(sum(confusion_mat))*100
-
-		plt.figure(figsize=(16,16))
 
 		clust_labels = ['1','2','3','4','5']
 
@@ -529,28 +483,39 @@ def strategyVsKmeans_confusion_matrix(model_file, human_file, fig_dir=None, save
 		for i in range(confusion_mat.shape[0]):
 			for j in range(confusion_mat.shape[1]):
 				ax.text(j, i, '{:.1f}'.format(pct[i,j])+'%',ha="center", va="center", color="w",fontsize=fontsize_ticks,fontweight='bold')
-		plt.xticks(range(confusion_mat.shape[1]),labels=strat_labels[:confusion_mat.shape[1]],rotation=90,fontsize=fontsize_ticks)
+		plt.xticks(range(confusion_mat.shape[1]),labels=strat_labels[:confusion_mat.shape[1]],rotation=30,fontsize=fontsize_ticks)
 		plt.yticks(range(confusion_mat.shape[0]),labels=clust_labels[:confusion_mat.shape[0]],fontsize=fontsize_ticks)
-		plt.ylabel('k-means cluster', fontsize=fontsize_labels)
-		plt.xlabel('strategy', fontsize=fontsize_labels)
-		plt.title('Confusion Matrix', fontsize=fontsize_labels)
-		# plt.clim(0, clim)
+		if plot_idx==0: plt.ylabel(r'$k$'+'-means Cluster', fontsize=fontsize_labels)
+		plt.xlabel('Strategy', fontsize=fontsize_labels)
+		ttl = 'Model' if not dat.isHuman else 'Participants'
+		plt.title(ttl, fontsize=fontsize_labels)
 		cbar = plt.colorbar(fraction=0.04, pad=0.04)
 		cbar.ax.tick_params(labelsize=20)
+		if plot_idx==1: cbar.set_label('Number of trials\n', rotation=270, fontsize=30, labelpad=25)
 
-		if save:
-			if not os.path.exists(fig_dir): os.makedirs(fig_dir)
-			ttl_sfx = '' if isHuman else '_model'
-			plt.savefig(fig_dir+'confusion_mat_kmeans-strategy'+ttl_sfx+'.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
-			dirstr = (model_file.find('data/'), 'exp1' if 'exp1' in model_file else 'exp2')
-			stats_dir = model_file[:dirstr[0]]+'stats/'+dirstr[1]+'/'
-			res = cohens_kappa(confusion_mat[:,:confusion_mat.shape[0]])
-			r1, r2, r3 = res['kappa'], res['kappa_low'], res['kappa_upp']
-			with open(stats_dir+'confusion_mat_kmeans-strategy-kappa'+ttl_sfx+'.txt', 'w') as f:
-				f.write(f'$\\kappa={r1:.{3}f}, 95\\% CI [{r2:.{3}f}, {r3:.{3}f}]$')
-		plt.show()
+		res = cohens_kappa(confusion_mat[:,:confusion_mat.shape[0]])
+		r1, r2, r3 = res['kappa'], res['kappa_low'], res['kappa_upp']
+		ttl_str = '' if dat.isHuman else '_model'
+		with open(dat.stats+'1/confusion_mat_kmeans-strategy-kappa'+ttl_str+'.txt', 'w') as f:
+			f.write(f'$\\kappa={r1:.{3}f}, 95\\% CI [{r2:.{3}f}, {r3:.{3}f}]$')
+		p_d.print_special('saved Cohen\'s Kappa stats to'+dat.stats+'confusion_mat_kmeans-strategy-kappa'+ttl_str+'.txt', False)
 
-def under_performance_pie(human_file1, human_file2, fig_dir=None, save=False):
+	plt.text(-1.5,-1, 'Confusion Matrices', fontsize=fontsize_labels, va='center',ha='center', fontweight='bold')
+	if exp.figs.save:
+		plt.savefig(exp.figs+'confusion_mat_kmeans-strategy.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
+		p_d.print_special('saved figure to '+exp.figs+'confusion_mat_kmeans-strategy.png', False)
+
+	if exp.figs.show: plt.show()
+
+def under_performance_pie(exp=cfg.exp1, exclude=False):
+
+	exclude_str = '_exclude' if exclude else ''
+	if exp.num==1:
+		dat1 = eval(pd.read_csv(exp.human, usecols=['under_performance'], low_memory=False).iloc[0][0])[0]
+		dat2 = eval(pd.read_csv(exp.human, usecols=['under_performance_exclude'], low_memory=False).iloc[0][0])[0]
+	elif exp.num==2:
+		dat1 = eval(pd.read_csv(exp.human_exp, usecols=['under_performance'+exclude_str], low_memory=False).iloc[0][0])[0]
+		dat2 = eval(pd.read_csv(exp.human_con, usecols=['under_performance'+exclude_str], low_memory=False).iloc[0][0])[0]
 
 	fontsize_ticks = 32
 	fontsize_labels = 42
@@ -561,53 +526,43 @@ def under_performance_pie(human_file1, human_file2, fig_dir=None, save=False):
 	strat_labels = ['SAT-TTB+','SAT-TTB','TTB','WADD','random','other']
 	ax = fig.gca()
 
-	for plot_ix, human_file in enumerate([human_file1, human_file2]):
-
-		exp2_str = human_file[-8:-4] if human_file[-8:-4]!='ials' else ''
-		if human_file == 'exclude':
-			dat = eval(pd.read_csv(human_file1, usecols=['under_performance_exclude']).iloc[0][0])[0]
+	for plot_ix, dat in enumerate([dat1, dat2]):
+		if exp.num==1:
+			exp2_str = ''
+		elif plot_ix==0:
+			exp2_str = '_exp'
 		else:
-			dat = eval(pd.read_csv(human_file, usecols=['under_performance']).iloc[0][0])[0]
+			exp2_str = '_con'
 
 		# remove negative numbers to not be included in pie chart
-		dat['imperfect_strat_exec_by_strat'] = [dat['imperfect_strat_exec_by_strat'][i] if dat['imperfect_strat_exec_by_strat'][i]>=0 else 0 for i in range(len(dat['imperfect_strat_exec_by_strat']))]
-		dat['imperfect_strat_selec_by_strat'] = [dat['imperfect_strat_selec_by_strat'][i] if dat['imperfect_strat_selec_by_strat'][i]>=0 else 0 for i in range(len(dat['imperfect_strat_selec_by_strat']))]
-
-		clrs = cm.get_cmap("Set2").colors[:4]
+		dat['imperfect_strat_exec_by_strat'] = [max(0, dat['imperfect_strat_exec_by_strat'][i]) for i in range(len(dat['imperfect_strat_exec_by_strat']))]
+		dat['imperfect_strat_selec_by_strat'] = [max(0, dat['imperfect_strat_selec_by_strat'][i]) for i in range(len(dat['imperfect_strat_selec_by_strat']))]
+		dat['implicit_costs'] = max(0, dat['implicit_costs']) # only needed for exp2 exp group (with no participant exclusion) who has a near-zero negative implicit cost
+		
+		clrs = get_cmap("Set2").colors[:4]
 		clrs = clrs+clrs[:2]+(clrs[2],)*6+(clrs[3],)*6
 		x1, x2 = dat['imperfect_strat_selec_by_strat'], dat['imperfect_strat_exec_by_strat']
-		labels = ['','','','','',''] + [f'{s}: {100*x1[i]:.1f}%' if x1[i]>=.0045 else '' for i,s in enumerate(['SAT-TTB+','SAT-TTB','TTB','WADD','random','other'])]\
-									+ [f'{s}: {100*x2[i]:.1f}%' if x2[i]>=.0045 else '' for i,s in enumerate(['SAT-TTB+','SAT-TTB','TTB','WADD','random','other'])]
+		labels = ['','','','','',''] + [f'{s}: {100*x1[i]:.1f}%' if x1[i]>=.004 else '' for i,s in enumerate(['SAT-TTB+','SAT-TTB','TTB','WADD','random','other'])]\
+									+ [f'{s}: {100*x2[i]:.1f}%' if x2[i]>=.004 else '' for i,s in enumerate(['SAT-TTB+','SAT-TTB','TTB','WADD','random','other'])]
 		perf = np.hstack([0,0,0,0,dat['implicit_costs'], dat['imperfect_info_use'], dat['imperfect_strat_selec_by_strat'], dat['imperfect_strat_exec_by_strat']])
 		perf = np.hstack([perf,1-sum(perf)]); clrs+=((1,1,.85),); labels+=['']
 
 		ax_center = [-1.2, 0] if plot_ix==0 else [1.2, 0]
-		wedges, texts = plt.pie(perf, center=ax_center, colors=clrs, labels=labels, startangle=90, counterclock=False, rotatelabels=False, \
+		wedges, texts = plt.pie(perf, center=ax_center, colors=clrs, labels=labels, startangle=sum(perf[:-1])*180, counterclock=False, rotatelabels=False, \
 						textprops={'fontsize':fontsize_ticks,'va':'center','ha':'center','linespacing':.8},\
 						wedgeprops={"edgecolor":[1,1,1],'linewidth':3},labeldistance=1) # autopct=my_autopct, 
 		groups = [[0,1,2,3,4],[5],[6,7,8,9,10,11],[12,13,14,15,16,17],[18]]
-		radfraction = 0.5
 		perf = [dat['implicit_costs'], dat['imperfect_info_use'], dat['imperfect_strat_selec'], dat['imperfect_strat_exec']]
 		perf = np.hstack([perf, 1-sum(perf)])
 		for i, group in enumerate(groups):
 			ang = np.deg2rad((wedges[group[0]].theta2 + wedges[group[-1]].theta1) / 2)
-			radfraction = .6 if human_file2=='exclude' and i==0 else .5
+			radfraction = .6 if i<4 else .5
 			center = np.array(wedges[group[0]].center) + radfraction * np.array([np.cos(ang), np.sin(ang)])
-			for j in group:
-				if human_file2!='exclude':
-					pos = np.array(texts[j].get_position()) 
-					if plot_ix==0 and j==11:
-						texts[j].set_position((pos[0], pos[1]+.035))
-					if plot_ix==0 and j==13:
-						texts[j].set_position((pos[0], pos[1]+.01))
-					elif plot_ix==1 and j==11:
-						texts[j].set_position((pos[0]+.14, pos[1]+.06))
-					elif plot_ix==1 and j==13: 
-						texts[j].set_position((pos[0]-.15, pos[1]+.06))
 			if i<4:
 				ax.text(center[0],center[1], f'{100*perf[i]:.1f}%',ha="center", va="center", color="k",fontsize=fontsize_labels,fontweight='bold')
 			else:
-				ax.text(center[0],center[1], f'{100*perf[i]:.1f}%\nParticipant performance',ha="center", va="center", color="k",fontsize=38)
+				hp = dat['human_performance_pct']
+				ax.text(center[0],center[1], f'{hp:.1f}%\nParticipant performance',ha="center", va="center", color="k",fontsize=38)
 	
 		if plot_ix==0:
 			ttl = 'Experimental group' if exp2_str=='_exp' else 'All participants'
@@ -615,17 +570,25 @@ def under_performance_pie(human_file1, human_file2, fig_dir=None, save=False):
 			ttl = 'Control group' if exp2_str=='_con' else 'Participants excluded'
 		plt.text(1.05*ax_center[0], 1.05, ttl, fontsize=fontsize_labels, va='center',ha='center')
 	
-	plt.text(0, 1.45, 'Sources of Participant Under-Performance\n[% of Model Net Relative Performance]', fontsize=fontsize_labels, fontweight='bold', va='center',ha='center')
+	plt.text(0, 1.45, 'Sources of Participant Under-Performance\n[% Model Net Performance]', fontsize=fontsize_labels, fontweight='bold', va='center',ha='center')
 	plt.legend(['Implicit costs of information gathering','Imperfect information use',\
 				'Imperfect strategy selection','Imperfect strategy execution',],\
 				fontsize=fontsize_legend, bbox_to_anchor=(0.02,1.05), loc='upper center')
+	if exp.figs.save:
+		plt.savefig(exp.figs+'performance_sources'+exclude_str+'.png', bbox_inches='tight', pad_inches=0.05, facecolor='w')
+		p_d.print_special('saved figure to'+exp.figs+'performance_sources'+exclude_str+'.png', False)
 
-	if save:
-		if not os.path.exists(fig_dir): os.makedirs(fig_dir)
-		plt.savefig(fig_dir+'performance_sources.png', bbox_inches='tight', pad_inches=0.05, facecolor='w')
-	plt.show()
+	if exp.figs.show: plt.show()
 
-def under_performance_byStrat(human_file1, human_file2, fig_dir=None, save=False):
+def under_performance_byStrat(exp=cfg.exp1, exclude=False):
+
+	exclude_str = '_exclude' if exclude else ''
+	if exp.num==1:
+		dat1 = eval(pd.read_csv(exp.human, usecols=['under_performance'], low_memory=False).iloc[0][0])[0]
+		dat2 = eval(pd.read_csv(exp.human, usecols=['under_performance_exclude'], low_memory=False).iloc[0][0])[0]
+	elif exp.num==2:
+		dat1 = eval(pd.read_csv(exp.human_exp, usecols=['under_performance'+exclude_str], low_memory=False).iloc[0][0])[0]
+		dat2 = eval(pd.read_csv(exp.human_con, usecols=['under_performance'+exclude_str], low_memory=False).iloc[0][0])[0]
 
 	fontsize_ticks = 32
 	fontsize_labels = 42
@@ -635,53 +598,58 @@ def under_performance_byStrat(human_file1, human_file2, fig_dir=None, save=False
 
 	strat_labels = ['SAT-TTB+','SAT-TTB','TTB','WADD','random','other']
 
-	for plot_ix, human_file in enumerate([human_file1, human_file2]):
+	colorbar_max = max(np.max(dat1['trial_counts'] / np.sum(dat1['trial_counts'])), \
+						np.max(dat2['trial_counts'] / np.sum(dat2['trial_counts'])))
+	for plot_ix, dat in enumerate([dat1, dat2]):
+		if exp.num==1:
+			exp2_str = ''
+		elif plot_ix==0:
+			exp2_str = '_exp'
+		else:
+			exp2_str = '_con'
 
 		ax = fig.add_subplot(1,2,plot_ix+1)
 
-		exp2_str = human_file[-8:-4] if human_file[-8:-4]!='ials' else ''
-		if human_file == 'exclude':
-			dat = eval(pd.read_csv(human_file1, usecols=['under_performance_exclude']).iloc[0][0])[0]
-		else:
-			dat = eval(pd.read_csv(human_file, usecols=['under_performance']).iloc[0][0])[0]
-		
-		mat = dat['trial_counts']
-		plt.imshow(mat, cmap='viridis') # cividis, plasma, viridis
+		mat = dat['trial_counts'] / np.sum(dat['trial_counts'])
+		im = plt.imshow(mat, cmap='viridis', norm=Colors.PowerNorm(vmin=0, vmax=colorbar_max, gamma=0.35))
+		# clrs = get_cmap("viridis", norm=Colors.PowerNorm(vmin=0, vmax=colorbar_max, gamma=.1))
+		# im = plt.imshow(mat, cmap=clrs, vmin=0, vmax=colorbar_max)
 		ax = plt.gca()
 		text0 = np.round(100*np.array(dat['imperfect_strat_selec_and_exec_by_strat']), decimals=1); text0[text0==0]=0
 		for i in range(np.shape(mat)[0]):
 			for j in range(np.shape(mat)[1]):
 				fmt = '{:.1f}' if text0[i,j]!=0 else '{:.0f}'
 				ax.text(j, i, fmt.format(text0[i,j])+'%',ha="center", va="center", color="w",fontsize=fontsize_ticks,fontweight='bold')
-		plt.xticks(range(len(mat)),labels=strat_labels[:len(mat)],rotation=90,fontsize=fontsize_ticks)
-		plt.yticks(range(len(mat)),labels=strat_labels[:len(mat)],fontsize=fontsize_ticks)
+		plt.xticks(range(len(mat)),labels=strat_labels[:len(mat)],rotation=30,fontsize=fontsize_ticks)
 		plt.xlabel('Participant strategy', fontsize=fontsize_labels)
 		if plot_ix==0:
+			plt.yticks(range(len(mat)),labels=strat_labels[:len(mat)],fontsize=fontsize_ticks)
 			plt.ylabel('Model strategy', fontsize=fontsize_labels)
-		if plot_ix==0:
 			ttl = 'Experimental group' if exp2_str=='_exp' else 'All participants'
 		else:
+			plt.tick_params(axis='y',which='both',left=False,labelleft=False)
 			ttl = 'Control group' if exp2_str=='_con' else 'Participants excluded'
 		plt.title(ttl, fontsize=fontsize_labels)
-		cbar = plt.colorbar(fraction=.045)
-		cbar.ax.tick_params(labelsize=20)
-		if plot_ix==1:
-			cbar.set_label('Number of trials\n', rotation=270, fontsize=30, labelpad=25)
-		
-	plt.text(-2.1,-1.25, 'Sources of Imperfect Strategy Selection and Execution\n[% of Model Net Relative Performance]', fontsize=fontsize_labels, va='center',ha='center', fontweight='bold')
-	plt.subplots_adjust(wspace=0.38)
+	plt.text(-.78,-1.25, 'Sources of Imperfect Strategy Selection and Execution\n[% Model Net Performance]', fontsize=fontsize_labels, va='center',ha='center', fontweight='bold')
+	plt.subplots_adjust(wspace=0.1)
+	fig.subplots_adjust(right=0.85)
+	cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+	plt.axis('off')
+	cbar = plt.colorbar(im, fraction=.35)
+	cbar.ax.tick_params(labelsize=24)
+	cbar.set_label('Fraction of trials', rotation=270, fontsize=30, labelpad=25)
 
-	if save:
-		if not os.path.exists(fig_dir): os.makedirs(fig_dir)
-		plt.savefig(fig_dir+'performance_strategy_sources.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
-	plt.show()
+	if exp.figs.save:
+		plt.savefig(exp.figs+'performance_strategy_sources'+exclude_str+'.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
+		p_d.print_special('saved figure to'+exp.figs+'performance_strategy_sources'+exclude_str+'.png', False)
 
-def centroids_exp2(model_file, human_file1, human_file2, fig_dir=None, save=False):
-	from mpl_toolkits.axes_grid1 import make_axes_locatable
+	if exp.figs.show: plt.show()
 
-	df1 = pd.read_csv(model_file)
-	df2 = pd.read_csv(human_file1)
-	df3 = pd.read_csv(human_file2)
+def exp2_centroids(exp=cfg.exp2):
+
+	df1 = pd.read_csv(exp.model, low_memory=False)
+	df2 = pd.read_csv(exp.human_exp, low_memory=False)
+	df3 = pd.read_csv(exp.human_con, low_memory=False)
 
 	centers1 = eval(df1['cluster_centers'].iloc[0])
 	centers2 = eval(df2['cluster_centers'].iloc[0])
@@ -752,17 +720,17 @@ def centroids_exp2(model_file, human_file1, human_file2, fig_dir=None, save=Fals
 	fig.text(0.5, 0.06, 'Total prob. of observed outcomes', fontsize=fontsize_labels, ha='center', va='center')
 	fig.text(0.087, 0.5, 'Prob. of outcome', fontsize=fontsize_labels, ha='center', va='center', rotation='vertical')
 
-	if save:
-		if not os.path.exists(fig_dir): os.makedirs(fig_dir)
-		plt.savefig(fig_dir+'centroids.png', bbox_inches='tight', pad_inches=0.05, facecolor='w')
+	if exp.figs.save:
+		plt.savefig(exp.figs+'centroids.png', bbox_inches='tight', pad_inches=0.05, facecolor='w')
+		p_d.print_special('saved figure to'+exp.figs+'centroids.png', False)
 	
-	plt.show()
+	if exp.figs.show: plt.show()
 
-def strategies_exp2(model_file, human_file1, human_file2, fig_dir=None, save=False):
+def exp2_strategies(exp=cfg.exp2):
 
-	df1 = pd.read_csv(model_file) # model
-	df2 = pd.read_csv(human_file1) # participants in experimental group
-	df3 = pd.read_csv(human_file2) # participants in control group
+	df1 = pd.read_csv(exp.model, low_memory=False) # model
+	df2 = pd.read_csv(exp.human_exp, low_memory=False) # participants in experimental group
+	df3 = pd.read_csv(exp.human_con, low_memory=False) # participants in control group
 
 	strategies = ['TTB_SAT','SAT_TTB','TTB','WADD']
 	legend_labels = ['SAT-TTB+','SAT-TTB','TTB','WADD']
@@ -785,14 +753,14 @@ def strategies_exp2(model_file, human_file1, human_file2, fig_dir=None, save=Fal
 	plt.subplots_adjust(wspace=0.075, hspace=0.075)
 
 	width = 0.7
-	labels = ['Model','Exp.','Control']
+	labels = ['Model','Experimental','Control']
 	for i, alpha in enumerate(np.flip(sorted(df1['alpha'].unique()))): # flip for inverse alpha
 		for j, cost in enumerate(sorted(df1['cost'].unique())):
 			plt.sca(plt.subplot(gs[i+2*j]))
 			plt.grid(axis='y')
 			plt.yticks(fontsize=fontsize_ticks)
 			plt.xlim([-.5,2.5])
-			plt.ylim((0,1.02))
+			plt.ylim((0,1.05))
 			for x, df in enumerate([df1, df2, df3]):
 				plt.gca().set_prop_cycle(None)
 				dat = [df[np.isclose(df['alpha'],alpha,atol=0.1) & (df['cost']==cost)].mean()[s] for s in strategies]
@@ -813,10 +781,10 @@ def strategies_exp2(model_file, human_file1, human_file2, fig_dir=None, save=Fal
 	plt.tick_params(axis='x',which='both',bottom=False,labelbottom=False) 
 	plt.tick_params(axis='y',which='both',left=False,labelleft=False) 
 	plt.sca(plt.subplot(gs[2]))
-	plt.xticks([0,1,2],labels,rotation=90,fontsize=fontsize_ticks)
+	plt.xticks([0,1,2],labels,rotation=30,fontsize=fontsize_ticks)
 	plt.yticks(fontsize=fontsize_ticks)
 	plt.sca(plt.subplot(gs[3]))
-	plt.xticks([0,1,2],labels,rotation=90,fontsize=fontsize_ticks)
+	plt.xticks([0,1,2],labels,rotation=30,fontsize=fontsize_ticks)
 	plt.tick_params(axis='y',which='both',left=False,labelleft=False) 
 
 	b1 = plt.subplot(gs[1]).get_position().bounds
@@ -824,31 +792,36 @@ def strategies_exp2(model_file, human_file1, human_file2, fig_dir=None, save=Fal
 	b3 = plt.subplot(gs[3]).get_position().bounds
 	midx = (b3[0]+b3[2]-b2[0])/2
 	midy = (b1[1]+b1[3]-b2[1])/2
-	fig.text(b2[0]+midx, 0.01, 'Group', fontsize=fontsize_labels, ha='center', va='center')
+	# fig.text(b2[0]+midx, 0.01, 'Group', fontsize=fontsize_labels, ha='center', va='center')
 	fig.text(b2[0]-0.06, b2[1]+midy, 'Strategy Frequency', fontsize=fontsize_labels, ha='center', va='center', rotation='vertical', fontweight='bold')
-	fig.text(b2[0]+midx, 0.94, 'Dispersion', fontsize=fontsize_labels, ha='center', va='center')
+	# fig.text(b2[0]+midx, 0.94, 'Dispersion', fontsize=fontsize_labels, ha='center', va='center')
+	fig.text(b2[0]+midx-midx/2, 0.94, 'Low Dispersion', fontsize=fontsize_labels, ha='center', va='center')
+	fig.text(b2[0]+midx+midx/2, 0.94, 'High Dispersion', fontsize=fontsize_labels, ha='center', va='center')
 	fig.text(b2[0]+midx-midx/2, 0.905, '['+r'$\alpha^{-1}=10^{-0.5}$]', fontsize=fontsize_labels, ha='center', va='center')
 	fig.text(b2[0]+midx+midx/2, 0.905, '['+r'$\alpha^{-1}=10^{0.5}$]', fontsize=fontsize_labels, ha='center', va='center')
-	fig.text(b1[0]+b1[2]+0.05, b2[1]+midy, 'Cost', fontsize=fontsize_labels, ha='center', va='center', rotation=270)
+	# fig.text(b1[0]+b1[2]+0.05, b2[1]+midy, 'Cost', fontsize=fontsize_labels, ha='center', va='center', rotation=270)
+	fig.text(b1[0]+b1[2]+0.05, b2[1]+midy+midy/2, 'Low Cost', fontsize=fontsize_labels, ha='center', va='center', rotation=270)
+	fig.text(b1[0]+b1[2]+0.05, b2[1]+midy-midy/2, 'High Cost', fontsize=fontsize_labels, ha='center', va='center', rotation=270)
 	fig.text(b1[0]+b1[2]+0.02, b2[1]+midy+midy/2, '[$\lambda=1$]', fontsize=fontsize_labels, ha='center', va='center', rotation=270)
 	fig.text(b1[0]+b1[2]+0.02, b2[1]+midy-midy/2, '[$\lambda=4$]', fontsize=fontsize_labels, ha='center', va='center', rotation=270)
 
-	if save:
-		if not os.path.exists(fig_dir): os.makedirs(fig_dir)
+	if exp.figs.save:
+		if not os.path.exists(exp.figs): os.makedirs(exp.figs)
 		ttl_str = '' if not plot_all6 else '_all6'
-		plt.savefig(fig_dir+'strategies'+ttl_str+'.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
+		plt.savefig(exp.figs+'strategies'+ttl_str+'.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
+		p_d.print_special('saved figure to'+exp.figs+'strategies'+ttl_str+'.png', False)
 
-	plt.show()
+	if exp.figs.show: plt.show()
 
-def condition_bars_exp2(model_file, human_file1, human_file2, fig_dir=None, save=False):
+def exp2_condition_bars(exp=cfg.exp2):
 
-	df1 = pd.read_csv(model_file) # model
-	df2 = pd.read_csv(human_file1) # participants in experimental group
-	df3 = pd.read_csv(human_file2) # participants in control group
+	df1 = pd.read_csv(exp.model, low_memory=False) # model
+	df2 = pd.read_csv(exp.human_exp, low_memory=False) # participants in experimental group
+	df3 = pd.read_csv(exp.human_con, low_memory=False) # participants in control group
 
 	params = ['nr_clicks','payoff_gross_relative','processing_pattern','click_var_outcome','click_var_gamble','nr_clicks','payoff_net_relative']
 	labels = ['Information Gathered','Relative Performance','Alternative vs. Attribute','Attribute Variance','Alternative Variance','Information Gathered','Net Relative Performance']
-	ylims = [(0,11),(0,1.03),(-1,0),(0,.2),(0,.06),(0,11),(-0.35,0.85)]
+	ylims = [(0,11),(0,1.03),(-1,0),(0,.2),(0,.06),(0,11),(-0.1,1)]
 	idxs = [[0,1],[2,3,4],[5,6]]
 
 	fontsize_ticks = 32
@@ -925,19 +898,21 @@ def condition_bars_exp2(model_file, human_file1, human_file2, fig_dir=None, save
 			subplot_labs = ['A','B','C','D']
 			fig.text(b0[p_][0]-.035+dx, bbt[1]+bbt[3]+.065*h1h2, subplot_labs[p_], fontsize=70, ha='center', va='center')
 
-		if save:
-			if not os.path.exists(fig_dir): os.makedirs(fig_dir)
-			ttl = fig_dir+'__'.join([params[i] for i in idx])+'.png'
+		if exp.figs.save:
+			if not os.path.exists(exp.figs): os.makedirs(exp.figs)
+			ttl = exp.figs+'__'.join([params[i] for i in idx])+'.png'
 			plt.savefig(ttl, bbox_inches='tight', pad_inches=0.05, facecolor='w')
-		plt.show()
+			p_d.print_special('saved figure to'+ttl, False)
 
-def clicks_dispersion_cost_exp2(fig_dir=None, save=False):
+		if exp.figs.show: plt.show()
 
-	df_mod2 = pd.read_csv('../data/model/exp2/processed/trials.csv')
-	df_exp = pd.read_csv('../data/human/2.3/processed/trials_exp.csv')
-	df_con = pd.read_csv('../data/human/2.3/processed/trials_con.csv')
-	df_mod1 = pd.read_csv('../data/model/exp1/processed/trials.csv')
-	df_h1 = pd.read_csv('../data/human/1.0/processed/trials.csv')
+def exp2_clicks_dispersion_cost(exp=cfg.exp2):
+
+	df_mod2 = pd.read_csv(exp.model, low_memory=False)
+	df_exp = pd.read_csv(exp.human_exp, low_memory=False)
+	df_con = pd.read_csv(exp.human_con, low_memory=False)
+	df_mod1 = pd.read_csv(cfg.exp1.model, low_memory=False)
+	df_h1 = pd.read_csv(cfg.exp1.human, low_memory=False)
 
 	df_mod2['nr_clicks'] = df_mod2['nr_clicks'] * df_mod2['trial_weight']
 	df_mod1['nr_clicks'] = df_mod1['nr_clicks'] * df_mod1['trial_weight_75']
@@ -997,7 +972,6 @@ def clicks_dispersion_cost_exp2(fig_dir=None, save=False):
 	plt.xlim(-.5,9.5)
 	plt.ylim(0,16)
 	plt.legend(['Cost=0','Cost=1','Cost=2','Cost=4','Cost=8'], fontsize=fontsize_legend)
-	# pdb.set_trace()
 	ax = fig.gca()
 	fig.text(b0[0]+b0[2]/8, 0.09, 'Model', fontsize=fontsize_labels-4, ha='center', va='center')
 	fig.text(b0[0]+b0[2]/2, 0.09, 'Exp.', fontsize=fontsize_labels-4, ha='center', va='center')
@@ -1015,16 +989,16 @@ def clicks_dispersion_cost_exp2(fig_dir=None, save=False):
 	fig.text(b0[0]-.03,b0[1]+b0[3]+.02, 'A', fontsize=70, ha='center', va='center')
 	fig.text(b1[0]-.03,b0[1]+b0[3]+.02, 'B', fontsize=70, ha='center', va='center')
 
-	# plt.sca(fig.gca())
-	if save:
-		if not os.path.exists(fig_dir): os.makedirs(fig_dir)
-		plt.savefig(fig_dir+'clicks_dispersion_cost.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
-	plt.show()
+	if exp.figs.save:
+		plt.savefig(exp.figs+'clicks_dispersion_cost.png',bbox_inches='tight',pad_inches=0.05, facecolor='w')
+		p_d.print_special('saved figure to'+exp.figs+'clicks_dispersion_cost.png', False)
 
-def clicks_dispersion_cost_3d_exp2(fig_dir=None, save=False):
+	if exp.figs.show: plt.show()
 
-	df_mod1 = pd.read_csv('../data/model/exp1/processed/trials.csv')
-	df_h1 = pd.read_csv('../data/human/1.0/processed/trials.csv')
+def exp2_clicks_dispersion_cost_3d(exp=cfg.exp1):
+
+	df_mod1 = pd.read_csv(exp.model, low_memory=False)
+	df_h1 = pd.read_csv(exp.human, low_memory=False)
 
 	df_mod1['nr_clicks'] = df_mod1['nr_clicks'] * df_mod1['trial_weight_75']
 
@@ -1069,185 +1043,136 @@ def clicks_dispersion_cost_3d_exp2(fig_dir=None, save=False):
 	fig.text(b3[0]+b3[2]/2,b3[1]+b3[3]-.07, 'Experiment 1\nParticipants', fontsize=fontsize_labels, ha='center', va='center', fontweight='bold')
 	plt.sca(fig.gca())
 
-	if save:
-		if not os.path.exists(fig_dir): os.makedirs(fig_dir)
-		plt.savefig(fig_dir+'clicks_dispersion_cost_3d.pdf',bbox_inches='tight',pad_inches=0.05, facecolor='w')
+	if exp.figs.save:
+		plt.savefig(exp.figs+'clicks_dispersion_cost_3d.pdf',bbox_inches='tight',pad_inches=0.05, facecolor='w')
+		p_d.print_special('saved figure to'+exp.figs+'clicks_dispersion_cost_3d.pdf', False)
 
-	plt.show()
+	if exp.figs.show: plt.show()
 
-def centroids_1_k(in_file, fig_dir=None, save=False, max_k=12):
-	from mpl_toolkits.axes_grid1 import make_axes_locatable
+def centroids_1_k(exp=cfg.exp1, max_k=12):
 
-	df1 = pd.read_csv(in_file)
+	for in_file in [exp.model, exp.human]:
+		df1 = pd.read_csv(in_file, low_memory=False)
 
-	fontsize_ticks = 32
-	fontsize_labels = 42
-	fontsize_legend = 36
+		fontsize_ticks = 32
+		fontsize_labels = 42
+		fontsize_legend = 36
 
-	fig = plt.figure(figsize=(32, 30))
-	ttl_str = 'Model' if 'model' in in_file else 'Participant'
-	plt.figtext(0.5, 0.9, ttl_str+' '+r'$k$'+'-means Centroids', ha='center', va='center', fontsize=fontsize_labels, fontweight='bold')
+		fig = plt.figure(figsize=(32, 30))
+		ttl_str = 'Participant' if in_file.isHuman else 'Model'
+		plt.figtext(0.5, 0.9, ttl_str+' '+r'$k$'+'-means Centroids', ha='center', va='center', fontsize=fontsize_labels, fontweight='bold')
 
-	gs = gridspec.GridSpec(max_k, max_k)
-	plt.subplots_adjust(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.05, hspace=0.05)
+		gs = gridspec.GridSpec(max_k, max_k)
+		plt.subplots_adjust(left=0.1, bottom=0.1, right=0.9, top=0.9, wspace=0.05, hspace=0.05)
 
-	for k in range(1,max_k+1):
-		centers = eval(df1['cluster_centers_k'+str(k)].iloc[0])
-		pct_labels = eval(df1['cluster_points_k'+str(k)].iloc[0])
+		for k in range(1,max_k+1):
+			centers = eval(df1['cluster_centers_k'+str(k)].iloc[0])
+			pct_labels = eval(df1['cluster_points_k'+str(k)].iloc[0])
 
-		# least to most clicks
-		centroid_orders = np.argsort(np.sum(centers, axis=1))
+			# least to most clicks
+			centroid_orders = np.argsort(np.sum(centers, axis=1))
 
-		sp = centroid_orders
-		for i in range(np.shape(centers)[0]):
-			plt.sca(plt.subplot(gs[(k-1)*(max_k)+i]))
+			sp = centroid_orders
+			for i in range(np.shape(centers)[0]):
+				plt.sca(plt.subplot(gs[(k-1)*(max_k)+i]))
 
-			if k==1:
-				plt.imshow(np.reshape(centers,(4,6)), vmin=0, vmax=1)
-			else:		
-				plt.imshow(np.reshape(centers[sp[i]],(4,6)), vmin=0, vmax=1)
-			pct_points = np.round(100*pct_labels[sp[i]], decimals=1)
-			plt.title(f'{pct_points}%', fontsize=fontsize_ticks)
+				if k==1:
+					plt.imshow(np.reshape(centers,(4,6)), vmin=0, vmax=1)
+				else:		
+					plt.imshow(np.reshape(centers[sp[i]],(4,6)), vmin=0, vmax=1)
+				pct_points = np.round(100*pct_labels[sp[i]], decimals=1)
+				plt.title(f'{pct_points}%', fontsize=fontsize_ticks)
 
-			if i==0:
-				plt.yticks([0,1,2,3], ['high','','','low'], fontsize=fontsize_ticks, rotation='vertical', va='center')
-			else:
-				plt.tick_params(axis='y',which='both',left=False,labelleft=False,bottom=False,labelbottom=False) 
+				if i==0:
+					plt.yticks([0,1,2,3], ['high','','','low'], fontsize=fontsize_ticks, rotation='vertical', va='center')
+				else:
+					plt.tick_params(axis='y',which='both',left=False,labelleft=False,bottom=False,labelbottom=False) 
 
-			if k==max_k:
-				plt.xticks([0,1,2,3,4,5], ['','high ','','',' low',''], fontsize=fontsize_ticks)
-			else:
-				plt.tick_params(axis='x',which='both',bottom=False,labelbottom=False) 
+				if k==max_k:
+					plt.xticks([0,1,2,3,4,5], ['','high ','','',' low',''], fontsize=fontsize_ticks)
+				else:
+					plt.tick_params(axis='x',which='both',bottom=False,labelbottom=False) 
 
-		plt.subplot(gs[(k-1)*(max_k)+i]).annotate(\
-			r'$k='+str(k)+'$', xy=(1, 0.5), xycoords='axes fraction', rotation=270, fontsize=fontsize_ticks, ha='left', va='center')
+			plt.subplot(gs[(k-1)*(max_k)+i]).annotate(\
+				r'$k='+str(k)+'$', xy=(1, 0.5), xycoords='axes fraction', rotation=270, fontsize=fontsize_ticks, ha='left', va='center')
 
-	fig.text(0.5, 0.07, 'Total prob. of observed outcomes', fontsize=fontsize_labels, ha='center', va='center')
-	fig.text(0.07, 0.5, 'Prob. of outcome', fontsize=fontsize_labels, ha='center', va='center', rotation='vertical')
+		fig.text(0.5, 0.07, 'Total prob. of observed outcomes', fontsize=fontsize_labels, ha='center', va='center')
+		fig.text(0.07, 0.5, 'Prob. of outcome', fontsize=fontsize_labels, ha='center', va='center', rotation='vertical')
 
-	plt.sca(plt.subplot(gs[round(max_k*1.5)]))
-	plt.axis('off')
-	divider = make_axes_locatable(plt.gca())
-	cax = divider.append_axes("right", size="20%", pad=0)
-	cbar = plt.colorbar(cax=cax)
-	cbar.ax.tick_params(labelsize=20)
-	plt.figtext(0.54, 0.8, 'Centroid values\n(Prob. of click)', ha='center', va='center', fontsize=fontsize_ticks, rotation='vertical')
+		plt.sca(plt.subplot(gs[round(max_k*1.5)]))
+		plt.axis('off')
+		divider = make_axes_locatable(plt.gca())
+		cax = divider.append_axes("right", size="20%", pad=0)
+		cbar = plt.colorbar(cax=cax)
+		cbar.ax.tick_params(labelsize=20)
+		plt.figtext(0.54, 0.8, 'Centroid values\n(Prob. of click)', ha='center', va='center', fontsize=fontsize_ticks, rotation='vertical')
 
-	if save:
-		if not os.path.exists(fig_dir): os.makedirs(fig_dir)
-		ttl_str = '_model' if 'model' in in_file else ''
-		plt.savefig(fig_dir+'centroids_1_'+str(max_k)+ttl_str+'.png', bbox_inches='tight', pad_inches=0.05, facecolor='w')
-	
-	plt.show()
+		if exp.figs.save:
+			ttl_str = '' if in_file.isHuman else '_model'
+			plt.savefig(exp.figs+'centroids_1_'+str(max_k)+ttl_str+'.png', bbox_inches='tight', pad_inches=0.05, facecolor='w')
+			p_d.print_special('saved figure to'+exp.figs+'centroids_1_'+str(max_k)+ttl_str+'.png', False)
+		
+		if exp.figs.show: plt.show()
 
-
-
-def lda(model_file, human_file, fig_dir=None, save=False):
-	# add click embeddings and labels to pkl file in p_d.append_kmeans
-	from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
-
-	df = pd.read_csv(human_file)
+def lda(exp=cfg.exp1):
 
 	fontsize_labels = 42
 	fontsize_legend = 36
 
-	pickle_dict = pd.read_pickle(os.path.splitext(human_file)[0]+'_click_embeddings.pkl')
-	X = [pickle_dict['click_embedding'][i] for i in range(len(pickle_dict['click_embedding']))]
-	y = pickle_dict['labels']
-	centroids = pickle_dict['cluster_centers']
-	centroids = centroids >= 0.5
+	if exp.num==2:
+		Exception('some tweaks are needed for experiment 2...')
+	if ('exclude' in exp.model) or ('exclude' in exp.human):
+		Exception('k-means needs to be run with participant exclusion (to match trial type samples with participant distribution), and other tweakes...')
 
+	for in_file in [exp.model, exp.human]:
 
+		df = pd.read_csv(in_file, low_memory=False)
 
-	# if isHuman:
-	# 	if len(df2)==0:
-	# 		df2 = pd.read_pickle('data/human/1.0/trials.pkl')
-	# 	km = pickle.load(open('data/human/1.0/kmeans.pkl', 'rb'))
-	# elif not(isHuman):
-	# 	if len(df2)==0:
-	# 		df2 = pd.read_pickle('data/model/no_implicit_cost/trials_model.pkl')
-	# 	df2 = df2.iloc[::10, :]
-	# 	km = pickle.load(open('data/model/no_implicit_cost/kmeans_model.pkl', 'rb'))
-	# if isHuman=='both':
-	# 	km1 = pickle.load(open('data/human/1.0/kmeans.pkl', 'rb'))
-	# 	km1 = km1['click_embedding_prob']['kmeans'][0].cluster_centers_
-	# 	km2 = pickle.load(open('data/model/no_implicit_cost/kmeans_model.pkl', 'rb'))
-	# 	km2 = km2['click_embedding_prob']['kmeans'][0].cluster_centers_
-	# 	km = np.append(km1, km2, axis=0)
-	# else:
-	# 	km = km['click_embedding_prob']['kmeans'][0].cluster_centers_
-	# km_bin = km >= 0.5
-	isHuman = True
-	colors = ['#2ca02c', '#d62728', '#ff7f0e', '#1f77b4', 'k', [.8,.8,.8]]#'#e3c9a4']
-	# if isHuman:
-	strategies_lab = ['TTB','WADD','SAT_TTB','TTB_SAT','Rand','Other']
-	legend_lab_s = ['TTB','WADD','SAT-TTB','SAT-TTB+','random','other']
-	order = [5,4,3,2,1,0]
-		# order = [0,1,2,3,4,5]
-	# 	legend_lab_k = ['Cluster 1','Cluster 2','Cluster 3','Cluster 4','Cluster 5']
-	# else:
-	# 	strategies_lab = ['TTB','WADD','SAT_TTB','TTB_SAT','Other']
-	# 	legend_lab_s = ['TTB','WADD','SAT-TTB','SAT-TTB+','other']
-	# 	order = [4,3,2,1,0]
-	# 	# order = [0,1,2,3,4]
-	# 	legend_lab_k = ['Cluster 1','Cluster 2','Cluster 3','Cluster 4']
-	# strategies_plt = [strategies_lab[i] for i in order]
+		pickle_dict = pd.read_pickle(os.path.splitext(in_file)[0]+'_click_embeddings.pkl')
+		X = [pickle_dict['click_embedding'][i] for i in range(len(pickle_dict['click_embedding']))]
+		y = pickle_dict['labels']
+		centroids = pickle_dict['cluster_centers']
+		order = np.argsort([sum(c) for c in centroids]) # least to most clicks
+		centroids = np.array(centroids) >= 0.5 # binarize centroids to fit well into lda space (which trains on binary data)
+		if not(in_file.isHuman): # assume this is model (not true experimental group in exp2)
+			order = [order[1],order[3],order[0],order[2]] # TTB, WADD, SAT-TTB, SAT-TTB+
+			legend_labels = ['Cluster 1','Cluster 2','Cluster 3','Cluster 4','Centroids']
+			fig_title, out_title = 'Model', '_model'
+			X = [X[i][sample] for i,trial_type in enumerate(pickle_dict['samples']) for sample in trial_type]
+		else: # includes random bets
+			order = [order[2],order[4],order[1],order[3],order[0]] # TTB, WADD, SAT-TTB, SAT-TTB+, random
+			legend_labels = ['Cluster 1','Cluster 2','Cluster 3','Cluster 4','Cluster 5','Centroids']
+			fig_title, out_title = 'Participants', ''
 
-	# y_km = np.ones(len(df2)); y_km[:] = np.nan
-	# for i, s in enumerate(strategies_plt):
-	# 	if (isHuman==True) | (isHuman=='both'):
-	# 		y_km[df2.strategy_click_embedding_prob_k5 == s] = order[i]
-	# 	else:
-	# 		y_km[df2.strategy_click_embedding_prob_k4 == s] = order[i]
+		mod = LDA(n_components=2).fit(X, y)
+		X = mod.transform(X)
+		centroids = mod.transform(centroids.astype(float))
 
-	# for ii, y in enumerate([y_km, y_strat]):
-	mod = LDA(n_components=2).fit(X, y)
+		plt.figure(figsize=[9,9])
 
-	X = mod.transform(X)
-	centroids = mod.transform(centroids.astype(float))
+		# add jitter for visualization
+		range_x = max(X[:,0]) - min(X[:,0]); yrange = max(X[:,1]) - min(X[:,1])
+		varFact = 40
+		jitter = np.stack((np.random.normal(loc=0.0, scale=range_x/varFact, size=len(X)), np.random.normal(loc=0.0, scale=yrange/varFact, size=len(X)))).T
+		X += jitter
 
-	plt.figure(figsize=[9,9])
+		colors = ['#2ca02c', '#d62728', '#ff7f0e', '#1f77b4', 'k']
+		for i,o in enumerate(order):
+			idx = y == o
+			plt.scatter(X[idx, 0], X[idx, 1], s=50, alpha = .05, color=colors[i], marker='.', label='_nolegend_')
+		plt.scatter(centroids[:,0], centroids[:,1], s=300, linewidth=3, alpha = 1, color='y', marker='+', label='_nolegend_')
+		plt.axis('off')
+		plt.title('Cluster visualization ('+fig_title+')', fontsize=fontsize_labels)
+		# for big legend markers:
+		xlim, ylim = plt.gca().get_xlim(), plt.gca().get_ylim()
+		for j in range(len(np.unique(y))):
+			plt.scatter(-100,-100, color=colors[j], s=500)
+		plt.scatter(-100, -100, s=800, linewidth=4, alpha = 1, color='y', marker='+')
+		plt.xlim(xlim); plt.ylim(ylim);
+		plt.legend(legend_labels, fontsize=fontsize_legend, loc='lower left', bbox_to_anchor=(1, 0.2))
 
-	# add jitter for visualization
-	range_x = max(X[:,0]) - min(X[:,0]); yrange = max(X[:,1]) - min(X[:,1])
-	varFact = 40
-	jitter = np.stack((np.random.normal(loc=0.0, scale=range_x/varFact, size=len(X)), np.random.normal(loc=0.0, scale=yrange/varFact, size=len(X)))).T
-	X += jitter
+		if exp.figs.save:
+			plt.savefig(exp.figs+'lda'+out_title+'.png', bbox_inches='tight', pad_inches=0.05, facecolor='w')
+			p_d.print_special('saved figure to'+exp.figs+'lda'+out_title+'.png', False)
 
-	for i, s in enumerate(np.sort(np.unique(y))):
-		# if ii==0:
-		# 	iii = i+1
-		# else:
-		# 	iii = i
-		# idx = y == order[iii]
-		idx = y == order[i]
-		plt.scatter(X[idx, 0], X[idx, 1], s=50, alpha = .05, color=colors[order[i]], marker='.', label='_nolegend_')
-
-	xlim, ylim = plt.gca().get_xlim(), plt.gca().get_ylim()
-	for j in range(len(np.unique(y))):
-		plt.scatter(-100,-100, color=colors[j], s=500)
-	plt.scatter(-100, 100, s=800, linewidth=4, alpha = 1, color='y', marker='+'); #legend_labels.append('Centroids')
-	plt.xlim(xlim); plt.ylim(ylim);
-	plt.axis('off')
-	if isHuman:
-		plt.title('Cluster visualization (Participants)', fontsize=fontsize_labels)
-	else:
-		plt.title('Cluster visualization (Model)', fontsize=fontsize_labels)
-	# if ii==0:
-	# 	ttl = title + 'kmeans'
-	legend_lab_k.append('Centroids')
-	# plt.legend(legend_lab_k, fontsize=fontsize_legend, loc='lower left', bbox_to_anchor=(1, 0.2))
-	plt.legend(legend_lab_s, fontsize=fontsize_legend, loc='lower left', bbox_to_anchor=(1, 0.2))
-	# else:
-	# 	ttl = title + 'strategy'
-	# 	legend_lab_s.append('Centroids')
-	# 	plt.legend(legend_lab_s, fontsize=fontsize_legend, loc='lower left', bbox_to_anchor=(1, 0.2))
-	plt.scatter(centroids[:,0], centroids[:,1], s=300, linewidth=3, alpha = 1, color='y', marker='+', label='_nolegend_')
-
-	if save:
-		if not os.path.exists(fig_dir): os.makedirs(fig_dir)
-		plt.savefig(fig_dir+'lda.png', bbox_inches='tight', pad_inches=0.05, facecolor='w')
-
-	plt.show()
-
-	return
+		if exp.figs.show: plt.show()
