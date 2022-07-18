@@ -491,7 +491,7 @@ def append_kmeans(in_file, k, sim_trials_per_human_trial=None, label_cols=False)
 def run_process_data(which_experiment='both', process_human=True, run_kmeans=True, process_model=True):
 
 	if which_experiment == 'both' or int(which_experiment) == 1:
-		exp = cfg.Exp1()
+		exp = cfg.Exp1
 		model_dats = [exp.model, exp.model_fitcost, exp.model_fitcost_exclude]
 		exclude_participants = [[False,True], [False], [True]]
 		
