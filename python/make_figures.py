@@ -18,7 +18,7 @@ def exp1_centroids(exp=cfg.exp1):
 
 	df1 = pd.read_csv(exp.model, low_memory=False)
 	df2 = pd.read_csv(exp.human, low_memory=False)
-
+	# import pdb; pdb.set_trace()
 	centers1 = eval(df1['cluster_centers'].iloc[0])
 	centers2 = eval(df2['cluster_centers'].iloc[0])
 
@@ -496,6 +496,7 @@ def strategyVsKmeans_confusion_matrix(exp=cfg.exp1, exclude=False):
 		res = cohens_kappa(confusion_mat[:,:confusion_mat.shape[0]])
 		r1, r2, r3 = res['kappa'], res['kappa_low'], res['kappa_upp']
 		ttl_str = '' if dat.isHuman else '_model'
+		if not os.path.exists(dat.stats+'1/'): os.makedirs(dat.stats+'1/')
 		with open(dat.stats+'1/confusion_mat_kmeans-strategy-kappa'+ttl_str+'.txt', 'w') as f:
 			f.write(f'$\\kappa={r1:.{3}f}, 95\\% CI [{r2:.{3}f}, {r3:.{3}f}]$')
 		p_d.print_special('saved Cohen\'s Kappa stats to'+dat.stats+'confusion_mat_kmeans-strategy-kappa'+ttl_str+'.txt', False)

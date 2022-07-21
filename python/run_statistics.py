@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
+import subprocess
 from scipy.stats import chi2_contingency
 from statsmodels.sandbox.stats.multicomp import multipletests
 from itertools import combinations
@@ -19,7 +20,8 @@ def exp1_strategy_logistic_regression(exp=cfg.exp1):
 	def R_output_to_df(data):
 		columns = ['param','beta','std_error','z_value','p']
 		df = pd.DataFrame(columns=columns)
-		for row in range(1,5):
+		for row in range(1,len(data)):
+			if data[row]=='': continue
 			i,j,substr = 0,0,[]
 			while i < len(data[row]):
 				while data[row][j] == ' ': j+=1
@@ -32,22 +34,30 @@ def exp1_strategy_logistic_regression(exp=cfg.exp1):
 				df.loc[row,columns[i+1]] = eval(s)
 		return df
 
+	try:
+		call_str = '/usr/bin/Rscript --vanilla '+os.path.dirname(os.getcwd())+'/R/logistic_regression.R'# +' '+dump_dir+' '+exp.human+' '+os.getcwd()
+		subprocess.call(call_str, shell=True)
+	except:
+		try:
+			subprocess.call (call_str, shell=True)
+		except:
+			p_d.print_special('!!! WARNING: you may need to run ../R/logistic_regression.R !!!')
+
 	if exp.stats.print_summary: p_d.print_special('Results for Exp. 1 logistic regression of strategy frequencies on environment conditions', header=True)
 
 	strategies = ['TTB_SAT','SAT_TTB','TTB','WADD','Rand','Other']
 	for strategy in strategies:
-		try:
-			with open(dump_dir+'R_'+strategy+'.txt', 'r') as f:
-				data = f.read().split('\n\n')
-			data = [i.split('\n') for i in data][0]
-		except:
-			print('='*79,'you need to run ../R/logistic_regression.R to create:',\
-				 '\n'.join([dump_dir+'R_'+s+'.txt' for s in strategies]),sep='\n')
-			p_d.print_special('!!! ABORTING exp1_logistic_regression (see message above) !!!')
-			return
-		df = R_output_to_df(data)
-
 		for param in ['sigma','alpha','cost']:
+			try:
+				with open(dump_dir+'R_'+strategy+'-R_'+param+'.txt', 'r') as f:
+					data = f.read().split('\n\n')
+				data = [i.split('\n') for i in data][0]
+			except:
+				p_d.print_special('!!! ABORTING exp1_logistic_regression(): you need to run ../R/logistic_regression.R !!!')
+				return
+			df = R_output_to_df(data)
+
+			# for param in ['sigma','alpha','cost']:
 			idx = np.where(df['param']==param)[0][0]
 			B, p = df.loc[idx,'beta'], df.loc[idx,'p']
 			p_str = f'= {p:.2}' if p >= 0.001 else '< 0.001'
@@ -55,9 +65,9 @@ def exp1_strategy_logistic_regression(exp=cfg.exp1):
 			with open(latex_dir+strategy+'-'+param+'.txt', 'w') as f:
 				f.write(latex_str)
 
-		if exp.stats.print_summary:
-			p_d.print_special(strategy)
-			print(df, '\n')
+			if exp.stats.print_summary:
+				p_d.print_special('IV: '+strategy+', DV: '+param)
+				print(df, '\n')
 	p_d.print_special('saved latex strategy logistic regression stats to '+latex_dir, False)
 
 def exp1_strategy_table(exp=cfg.exp1):
