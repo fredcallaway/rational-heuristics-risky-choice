@@ -16,7 +16,7 @@ end
 @everywhere id(m::MetaMDP) = join([round(m.weight_dist.alpha[1]; digits=3), m.reward_dist.σ, m.cost], "-")
 
 # %% ==================== setup ====================
-# push!(ARGS, "2", "TEST")
+# push!(ARGS, "1", "TEST")
 EXPERIMENT = parse(Int, ARGS[1])
 RUN = ARGS[2]
 
@@ -44,9 +44,6 @@ all_mdps = map(Iterators.product(alphas, sigmas, costs)) do (alpha, sigma, cost)
         cost=cost
     )
 end |> collect;
-
-m = all_mdps[1]
-pol = optimize_bmps(m)
 
 # %% ==================== policy optimization ====================
 
@@ -205,4 +202,36 @@ else @assert EXPERIMENT == 2
         cond => (;full, exclude, exclude_alt)
     end
     @chain costs Dict json write("../data/model/$RUN/exp2_costs.json", _)
+end
+
+# %% ==================== compute perfect rationality benchmark ====================
+
+if EXPERIMENT == 1
+    @everywhere function emax_normal(k::Real, d::Normal)
+        mcdf(x) = cdf(d, x)^k
+        lo = d.μ - 5d.σ; hi = d.μ + 5d.σ
+        - quadgk(mcdf, lo, 0, atol=1e-5)[1] + quadgk(x->1-mcdf(x), 0, hi, atol=1e-5)[1]
+    end
+
+    baselines = map(alphas) do alpha
+        m = MetaMDP(reward_dist=Normal(0, 1), weight_dist=Dirichlet(ones(4) .* alpha), n_gamble=1)
+        n_total = 1_000_000
+        n_batch = 1000
+        n_per = n_total / n_batch
+        x = @showprogress pmap(1:n_batch) do i
+            mean(1:n_per) do j
+                b = Belief(m)
+                gv = gamble_values(b)[1]
+                emax_normal(6, gv)
+            end
+        end
+        (;mean=mean(x), sem = std(x) / √n_batch)
+    end
+
+    df = mapreduce(vcat, sigmas) do sigma
+        µ, sem = invert(baselines)
+        DataFrame(;sigma, alpha=alphas, baseline = µ .* sigma, sem = sem .* sigma)
+    end
+
+    df |> CSV.write("../data/model/$RUN/perfectly_rational.csv")
 end
