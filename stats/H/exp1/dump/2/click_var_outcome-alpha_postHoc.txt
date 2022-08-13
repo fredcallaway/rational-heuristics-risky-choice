@@ -1,0 +1,1 @@
+\begin{tabular}{@{}c@{}}all pairs except\\$10^{-0.5} \& 10^{.0}$, $10^{.0} \& 10^{0.5}$\end{tabular}

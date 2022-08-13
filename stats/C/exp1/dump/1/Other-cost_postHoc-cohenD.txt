@@ -1,1 +1,1 @@
-\begin{tabular}{@{}c@{}}all pairs except\\$2 \& 4$\end{tabular} & $-0.15, 0.055, 0.017, 0.031$
+\begin{tabular}{@{}c@{}}all pairs except\\$0 \& 8$, $2 \& 4$, \\$4 \& 8$\end{tabular} & $-0.13, 0.061, 0.022, 0.03$

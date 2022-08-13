@@ -1,4 +1,5 @@
 import os
+import sys
 import importlib
 import cfg
 import process_data as p_d
@@ -19,9 +20,9 @@ def figures(save=True, show=False):
     mf.exp1_strategies(cfg.exp1)
     mf.exp1_heatmaps(cfg.exp1)
     mf.exp1_condition_lines(cfg.exp1)
-    mf.strategyVsKmeans_confusion_matrix(cfg.exp1)
-    mf.under_performance_pie(cfg.exp1)
-    mf.under_performance_byStrat(cfg.exp1)
+    mf.exp1_strategyVsKmeans_confusion_matrix(cfg.exp1)
+    mf.under_performance_pie(cfg.exp1.human, cfg.exp1.human_exclude)
+    mf.under_performance_byStrat(cfg.exp1.human, cfg.exp1.human_exclude)
     mf.centroids_1_k(cfg.exp1)
     mf.lda(cfg.exp1)
 
@@ -31,10 +32,10 @@ def figures(save=True, show=False):
     mf.exp2_centroids(cfg.exp2)
     mf.exp2_strategies(cfg.exp2)
     mf.exp2_condition_bars(cfg.exp2)
-    mf.under_performance_pie(cfg.exp2)
-    mf.under_performance_byStrat(cfg.exp2)
-    mf.under_performance_pie(cfg.exp2, exclude=2)
-    mf.under_performance_byStrat(cfg.exp2, exclude=2)
+    mf.under_performance_pie(cfg.exp2.human_con, cfg.exp2.human_exp)
+    mf.under_performance_byStrat(cfg.exp2.human_con, cfg.exp2.human_exp)
+    mf.under_performance_pie(cfg.exp2.human_exclude_con, cfg.exp2.human_exclude_exp)
+    mf.under_performance_byStrat(cfg.exp2.human_exclude_con, cfg.exp2.human_exclude_exp)
     mf.exp2_clicks_dispersion_cost(cfg.exp2)
     mf.exp2_clicks_dispersion_cost_3d(cfg.exp1)
 
@@ -48,7 +49,7 @@ def statistics(print_summary=True):
     rs.exp1_strategy_table(cfg.exp1)
     rs.exp1_behavioral_features(cfg.exp1)
     rs.under_performance(cfg.exp1.human)
-    rs.under_performance(cfg.exp1.human, exclude=True)
+    rs.under_performance(cfg.exp1.human_exclude)
 
     # Experiment 2
     cfg.exp2.stats.print_summary = print_summary
@@ -56,31 +57,22 @@ def statistics(print_summary=True):
     rs.exp2_behavioral_features(cfg.exp2)
     rs.under_performance(cfg.exp2.human_exp)
     rs.under_performance(cfg.exp2.human_con)
-    rs.under_performance(cfg.exp2.human_exp, exclude=True)
-    rs.under_performance(cfg.exp2.human_con, exclude=True)
+    rs.under_performance(cfg.exp2.human_exclude_exp)
+    rs.under_performance(cfg.exp2.human_exclude_con)
 
     rs.participant_demographics(cfg.exp1)
     rs.participant_demographics(cfg.exp2)
 
     p_d.print_special(f'finished running statistics ({cfg.timer()})', header=True)
 
-
-model_runs = ['A/','B/','C/']
-TASK_ID = os.getenv('SLURM_ARRAY_TASK_ID')
-if TASK_ID != None:
-    '''need to resolve human files being written over in parallel;
-    could make duplicate human copies and use basedir.human = '../data/human/'
-    but better to eliminate human redundancies'''
-    cfg.basedir(model_runs[int(TASK_ID)])
-    importlib.reload(cfg)
-    data_processing()
-    figures()
-    statistics()
-else:
-    for m in ['A/','B/','C/']:#model_runs:
+with open("main.out", 'w') as f:
+    sys.stdout = f
+    model_runs = ['A/','B/','C/','D/','E/','F/','G/','H/','I/','J/']
+    for m in model_runs + ['']:
         cfg.basedir(m)
         importlib.reload(cfg)
         data_processing()
         figures()
         statistics()
+    # change k-means samples to 100
 

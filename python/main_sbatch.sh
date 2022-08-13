@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH -a 0-2
+#SBATCH -a 0-9
 #SBATCH -c 24
 #SBATCH -o log/main-%A-%a.log # %A=task array id, %a=task index number; if not doing array job (ie no -a) then replace %A%a with %j=job ID, 
 #SBATCH -p all
-#SBATCH -t 40
+#SBATCH -t 60
 #SBATCH --mail-type ALL
 #SBATCH --mail-user paul.m.krueger@gmail.com
 module purge

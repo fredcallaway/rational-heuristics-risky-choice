@@ -35,10 +35,11 @@ def exp1_strategy_logistic_regression(exp=cfg.exp1):
 		return df
 
 	try:
-		call_str = '/usr/bin/Rscript --vanilla '+os.path.dirname(os.getcwd())+'/R/logistic_regression.R'# +' '+dump_dir+' '+exp.human+' '+os.getcwd()
+		call_str = '/usr/bin/Rscript --vanilla '+os.path.dirname(os.getcwd())+'/R/logistic_regression.R '+dump_dir+' '+exp.human#+' '+os.getcwd()
 		subprocess.call(call_str, shell=True)
 	except:
 		try:
+			call_str = '/usr/local/bin/Rscript --vanilla '+os.path.dirname(os.getcwd())+'/R/logistic_regression.R '+dump_dir+' '+exp.human#+' '+os.getcwd()
 			subprocess.call (call_str, shell=True)
 		except:
 			p_d.print_special('!!! WARNING: you may need to run ../R/logistic_regression.R !!!')
@@ -164,9 +165,10 @@ def exp1_behavioral_features(exp=cfg.exp1):
 			p_d.print_special('Results for Exp. 1 linear regression of behavioral features on environment conditions, '+\
 				'main effects, post-hoc corrections for multiple comparisions, and effect sizes'+exclude_str, header=True)
 
-		df = pd.read_csv(exp.human, low_memory=False)
 		if exclude:
-			df = p_d.exclude_bad_participants(df)
+			df = pd.read_csv(exp.human_exclude, low_memory=False)
+		else:
+			df = pd.read_csv(exp.human, low_memory=False)
 		exclude_str = '_exclude' if exclude else ''
 
 		cond_str = {'alpha': ['10^{-1.0}','10^{-0.5}','10^{.0}','10^{0.5}','10^{1.0}'],
@@ -250,7 +252,7 @@ def exp1_behavioral_features(exp=cfg.exp1):
 					]
 
 		exclude = [False]*n_vars if not exclude else exclude
-		tablenames = [[tn]*3 if not exclude[i] else ['\\begin{tabular}{@{}c@{}}'+tn+'\\\\(Participants excluded)'+' \\end{tabular} ']*3 for i,tn in enumerate(tablenames)]
+		tablenames = [[tn]*3 if not exclude[i] else ['\\begin{tabular}{@{}c@{}}'+tn+'\\\\(with exclusions)'+' \\end{tabular} ']*3 for i,tn in enumerate(tablenames)]
 		tablenames = [x for y in tablenames for x in y]
 		n_rows = len(tablenames)
 		table_string = \
@@ -400,14 +402,14 @@ def exp2_behavioral_features(exp=cfg.exp2):
 
 	p_d.print_special('saved latex table to '+latex_dir+'table_behavior.tex', False)
 
-def under_performance(exp=cfg.exp1.human, exclude=False):
+def under_performance(exp=cfg.exp1.human):
 	dump_dir, latex_dir = exp.stats+'dump/3/', exp.stats+'3/'
-	latex_dir = exp.stats+'3b/' if exclude and exp.num==2 else latex_dir
+	latex_dir = exp.stats+'3b/' if exp.exclude and exp.num==2 else latex_dir
 	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
 	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
-	exclude_str = '_exclude' if exclude else ''
-	dat = eval(pd.read_csv(exp, usecols=['under_performance'+exclude_str], low_memory=False).iloc[0][0])[0]
+	exclude_str = '_exclude' if exp.exclude else ''
+	dat = eval(pd.read_csv(exp, usecols=['under_performance'], low_memory=False).iloc[0][0])[0]
 	exp2_str = '' if exp.num==1 else '_'+exp.group
 
 	# model clicks - human clicks
@@ -433,12 +435,12 @@ def under_performance(exp=cfg.exp1.human, exclude=False):
 	# overall perforamcne in percentage of model net relative reward
 	x = dat['human_performance_pct']
 	with open(latex_dir+'perf-overall-pct'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${x:.{2}f}$')
+		f.write(f'${x:.{1}f}\\%$')
 
 	# overall perforamcne gap in units of net relative reward
 	x = dat['peformance_gap_abs']
 	with open(latex_dir+'perf-reduc_overall-abs'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${x:.{2}f}$')
+		f.write(f'${x:.{1}f}$')
 
 	# overall perforamcne gap in percentage of model net relative reward
 	x = dat['peformance_gap_pct']
@@ -488,7 +490,7 @@ def under_performance(exp=cfg.exp1.human, exclude=False):
 	# reduction in performance from imperfect strategy selection and execution, as a fraction of model-human performance gap
 	x = dat['imperfect_info_use_points_lost']
 	with open(latex_dir+'perf-reduc_info-use-pointsPerTrial'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${100*x:.{1}f}\\%$')
+		f.write(f'${x:.{1}f}$')
 
 	p_d.print_special('saved under-performance files to '+latex_dir+'perf-reduc_....txt', False)
 
