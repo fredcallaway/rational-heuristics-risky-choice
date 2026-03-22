@@ -7,10 +7,11 @@ from statsmodels.sandbox.stats.multicomp import multipletests
 from itertools import combinations
 from statsmodels.stats.proportion import proportion_effectsize
 import statsmodels.formula.api as smf
-from scipy.stats import f_oneway, ttest_ind
+from scipy.stats import f_oneway, ttest_ind, ttest_1samp
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 import process_data as p_d
 import cfg
+import pdb
 
 def exp1_strategy_logistic_regression(exp=cfg.exp1):
 	dump_dir, latex_dir = exp.stats+'dump/1/', exp.stats+'1/'
@@ -64,7 +65,7 @@ def exp1_strategy_logistic_regression(exp=cfg.exp1):
 			p_str = f'= {p:.2}' if p >= 0.001 else '< 0.001'
 			latex_str = f'$B = {B:.2}, p {p_str}$'
 			with open(latex_dir+strategy+'-'+param+'.txt', 'w') as f:
-				f.write(latex_str)
+				f.write(latex_str+'\\unskip')
 
 			if exp.stats.print_summary:
 				p_d.print_special('IV: '+strategy+', DV: '+param)
@@ -222,7 +223,7 @@ def exp1_behavioral_features(exp=cfg.exp1):
 				cd_str = '$'+', '.join([f'{p_d.cohen_d(dat[i],dat[i+1]):.2}' for i in range(len(dat)-1)])+'$'
 				
 				with open(latex_dir+p+exclude_str+'-'+c+'_mixedlm.txt', 'w') as f:
-					f.write(lm_str1+lm_str2)
+					f.write(lm_str1+lm_str2+'\\unskip')
 					
 				with open(dump_dir+p+exclude_str+'-'+c+'_mainEffect.txt', 'w') as f:
 					f.write(me_str1+me_str2)
@@ -294,113 +295,143 @@ def exp2_strategies(exp=cfg.exp2):
 	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
 	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
-	df1 = pd.read_csv(exp.human_exp, low_memory=False)
-	df2 = pd.read_csv(exp.human_con, low_memory=False)
-
-	alphas = np.flip(np.sort(df1['alpha'].unique()))
-	costs = np.sort(df1['cost'].unique())
-
-	dof1, dof2 = 1, min(len(df1),len(df2))
 	if exp.stats.print_summary: p_d.print_special('Results for Exp. 2 group comparisons of strategy frequencies and effect sizes', header=True)
-	for s in ['TTB_SAT','SAT_TTB','TTB','WADD']:
-		for i, a in enumerate(alphas):
-			for j, c in enumerate(costs):
-				chi_table = [
-							[sum(df1[(df1['alpha']==a)&(df1['cost']==c)][s]==True),\
-								sum(df1[(df1['alpha']==a)&(df1['cost']==c)][s]==False)],\
-							[sum(df2[(df2['alpha']==a)&(df2['cost']==c)][s]==True),\
-								sum(df2[(df2['alpha']==a)&(df2['cost']==c)][s]==False)]\
-							]
-				chi, p, _, _ = chi2_contingency(chi_table)
+	for model_diff in [False, True]:
+		model_diff_str = '_modelDiff' if model_diff else ''
+		df1 = pd.read_csv(exp.human_exp, low_memory=False)
+		df2 = pd.read_csv(exp.human_con, low_memory=False)
+		df_mod = pd.read_csv(exp.model, low_memory=False)
 
-				d = proportion_effectsize(df1[(df1['alpha']==a)&(df1['cost']==c)][s].mean(),\
-										  df2[(df2['alpha']==a)&(df2['cost']==c)][s].mean())
+		alphas = np.flip(np.sort(df1['alpha'].unique()))
+		costs = np.sort(df1['cost'].unique())
 
-				p_str = f'={p:.2}' if p >= 0.001 else '<0.001'
-				latex_str = f'$\chi^2({dof1},{dof2})={chi:.1f}, p{p_str}, d={d:.2f}$'
-				with open(f'{latex_dir}chi2-{s}-alpha{i}-cost{c}.txt', 'w') as f:
-					f.write(latex_str)
+		dof1, dof2 = 1, min(len(df1),len(df2))
+		for s in ['TTB_SAT','SAT_TTB','TTB','WADD']:
+			for i, a in enumerate(alphas):
+				for j, c in enumerate(costs):
 
-				if exp.stats.print_summary:
-					print(f'{s}-alpha{i}-cost{c}')
-					print(latex_str.replace('$','').replace('\\',''))
+					if model_diff:
+						df1[s] = abs(df1[s].values - df_mod[-len(df1):][s].values).tolist()
+						df2[s] = abs(df2[s].values - df_mod[:len(df2)][s].values).tolist()
+
+					chi_table = [
+								[df1[(df1['alpha']==a)&(df1['cost']==c)][s].sum(),\
+									sum(1 - df1[(df1['alpha']==a)&(df1['cost']==c)][s])],\
+								[df2[(df2['alpha']==a)&(df2['cost']==c)][s].sum(),\
+									sum(1 - df2[(df2['alpha']==a)&(df2['cost']==c)][s])]\
+								]
+
+					chi, p, _, _ = chi2_contingency(chi_table)
+
+					d = proportion_effectsize(df1[(df1['alpha']==a)&(df1['cost']==c)][s].mean(),\
+											  df2[(df2['alpha']==a)&(df2['cost']==c)][s].mean())
+
+					p_str = f'={p:.2}' if p >= 0.001 else '<0.001'
+					latex_str = f'$\chi^2({dof1},{dof2})={chi:.1f}, p{p_str}, d={d:.2f}$'
+					with open(f'{latex_dir}chi2-{s}-alpha{i}-cost{c}{model_diff_str}.txt', 'w') as f:
+						f.write(latex_str+'\\unskip')
+
+					if exp.stats.print_summary:
+						print(f'{s}-alpha{i}-cost{c}{model_diff_str}')
+						print(latex_str.replace('$','').replace('\\',''))
 
 	p_d.print_special('saved latex strategy chi-square stats to '+latex_dir, False)
 
 def exp2_behavioral_features(exp=cfg.exp2):
-	dump_dir, latex_dir = exp.stats+'dump/2/', exp.stats+'2/'
-	if not os.path.exists(dump_dir): os.makedirs(dump_dir)
-	if not os.path.exists(latex_dir): os.makedirs(latex_dir)
-
-	df1 = pd.read_csv(exp.human_exp, low_memory=False)
-	df2 = pd.read_csv(exp.human_con, low_memory=False)
-
-	alphas = np.flip(np.sort(df1['alpha'].unique()))
-	costs = np.sort(df1['cost'].unique())
 
 	if exp.stats.print_summary: p_d.print_special('Results for Exp. 2 group comparisons of behavioral features and effect sizes', header=True)
-	for s in ['processing_pattern','click_var_outcome','click_var_gamble','nr_clicks','payoff_net_relative']:
-		dump_file = s in ['processing_pattern','click_var_outcome','click_var_gamble'] # results formated for a table, not in-text
-		for i, a in enumerate(alphas):
-			for j, c in enumerate(costs):
-				df1_ = df1.dropna(subset=[s])
-				df2_ = df2.dropna(subset=[s])
-				
-				x1 = df1_[(df1_['alpha']==a)&(df1_['cost']==c)].groupby('pid').mean()[s]
-				x2 = df2_[(df2_['alpha']==a)&(df2_['cost']==c)].groupby('pid').mean()[s]
-				
-				t, p = ttest_ind(x1, x2)
-				d = p_d.cohen_d(x1, x2)
-					
-				dof = len(x1) + len(x2) - 2
-				p_str = f'={p:.2}' if p >= 0.001 else '<0.001'
-				# table formatting vs. in-text
-				sep = '$ & $' if dump_file else ', '
-				out_dir = dump_dir if dump_file else latex_dir
-				out_str = f'$t({dof})={t:.2f}{sep}p{p_str}{sep}d={d:.2f}$'
-				with open(f'{out_dir}ttest-{s}-alpha{i}-cost{c}.txt', 'w') as f:
-					f.write(out_str)
-					
-				if exp.stats.print_summary:
-					print(f'{s}-alpha{i}-cost{c}')
-					print(out_str.replace('$','').replace('\\','').replace(' &',','))
+	for model_diff in [False, True]:
+		model_diff_str = '_modelDiff' if model_diff else ''
+		for exclude in [False, True]:
+			exclude_str = '_exclude' if exclude else ''
+			if exclude:
+				df_mod = pd.read_csv(exp.model_exclude, low_memory=False)
+				df1 = pd.read_csv(exp.human_exclude_exp, low_memory=False)
+				df2 = pd.read_csv(exp.human_exclude_con, low_memory=False)
+				dump_dir, latex_dir = exp.stats+'dump/2b/', exp.stats+'2b/'
+			else:
+				df_mod = pd.read_csv(exp.model, low_memory=False)
+				df1 = pd.read_csv(exp.human_exp, low_memory=False)
+				df2 = pd.read_csv(exp.human_con, low_memory=False)
+				dump_dir, latex_dir = exp.stats+'dump/2/', exp.stats+'2/'
+			if not os.path.exists(dump_dir): os.makedirs(dump_dir)
+			if not os.path.exists(latex_dir): os.makedirs(latex_dir)
 
-	p_d.print_special('saved latex behavioral stats to '+latex_dir, False)
+			alphas = np.flip(np.sort(df1['alpha'].unique()))
+			costs = np.sort(df1['cost'].unique())
 
-	filenames = [dump_dir+''.join(x) for x in zip(\
-												['ttest-']*12,\
-												['processing_pattern-']*4+\
-												['click_var_outcome-']*4+\
-												['click_var_gamble-']*4,\
-												np.tile(['alpha0-','alpha1-'],6).tolist(),
-												np.tile(['cost1.txt']*2+['cost4.txt']*2,3).tolist())]
+			for s in ['processing_pattern','click_var_outcome','click_var_gamble','nr_clicks','payoff_net_relative','payoff_net']:
+				dump_file = s in ['processing_pattern','click_var_outcome','click_var_gamble'] # results formated for a table, not in-text
+				for i, a in enumerate(alphas):
+					for j, c in enumerate(costs):
+						df1.reset_index(drop=True, inplace=True); df2.reset_index(drop=True, inplace=True) # just to be safe
+						df1_ = df1.dropna(subset=[s])
+						df2_ = df2.dropna(subset=[s])
 
-	table_string = \
-	'\\begin{tabular}{lclll}\n'+\
-	'Behavioral feature & '+\
-	'\\begin{tabular}{@{}c@{}}Condition\\\\(dispersion, cost)\\end{tabular}& '+\
-	'$t$-statistic & $p$-value & '+\
-	'\\begin{tabular}{@{}c@{}}effect size\\\\(Cohen\'s $d$)\\end{tabular}\\\\\n'+\
-	'\\midrule\n'+\
-	'\\\\\n'.join([''.join(x) for x in zip(\
-										['Processing pattern']*4 + \
-										['Attribute variance']*4 + \
-										['Alternative variance']*4, \
-										[' & ']*12,\
-										[' \\begin{tabular}{@{}c@{}} '+y+' \\end{tabular}' for y in \
-											['\\\\'.join(z) for z in zip(np.tile(['$\\alpha^{-1}=10^{-0.5}$','$\\alpha^{-1}=10^{0.5}$'],6).tolist(),
-																		 np.tile(['$\\lambda=1$']*2+['$\\lambda=4$']*2,3).tolist())]], \
-										[' & ']*12,\
-										[open(filenames[i],'r').read() for i in range(len(filenames))])\
-					])+\
-	'\\\\\n'+\
-	'\\bottomrule'+\
-	'\\end{tabular}'
+						x1 = df1_[(df1_['alpha']==a)&(df1_['cost']==c)].groupby('pid').mean()[s]
+						x2 = df2_[(df2_['alpha']==a)&(df2_['cost']==c)].groupby('pid').mean()[s]
 
-	with open(latex_dir+'table_behavior.tex', 'w') as f:
-		f.write(table_string)
+						if model_diff:
+							df_mod1 = df_mod[-len(df1):].reset_index(); df_mod1['pid'] = df1['pid'].values; df_mod1 = df_mod1.loc[df1_.index]
+							df_mod2 = df_mod[:len(df2)].reset_index(); df_mod2['pid'] = df2['pid'].values; df_mod2 = df_mod2.loc[df2_.index]
+							x1 = abs(x1 - df_mod1[(df_mod1['alpha']==a)&(df_mod1['cost']==c)].groupby('pid').mean()[s])
+							x2 = abs(x2 - df_mod2[(df_mod2['alpha']==a)&(df_mod2['cost']==c)].groupby('pid').mean()[s])
 
-	p_d.print_special('saved latex table to '+latex_dir+'table_behavior.tex', False)
+						t, p = ttest_ind(x1, x2)
+						d = p_d.cohen_d(x1, x2)
+							
+						dof = len(x1) + len(x2) - 2
+						p_str = f'={p:.2}' if p >= 0.001 else '<0.001'
+						# table formatting vs. in-text
+						sep = '$ & $' if dump_file else ', '
+						out_dir = dump_dir if dump_file else latex_dir
+						out_str = f'$t({dof})={t:.2f}{sep}p{p_str}{sep}d={d:.2f}$'
+						if not dump_file: out_str += '\\unskip'
+						with open(f'{out_dir}ttest-{s}-alpha{i}-cost{c}{model_diff_str}{exclude_str}.txt', 'w') as f:
+							f.write(out_str)
+							
+						if exp.stats.print_summary:
+							print(f'{s}-alpha{i}-cost{c}{model_diff_str}{exclude_str}')
+							print(out_str.replace('$','').replace('\\','').replace(' &',','))
+
+			p_d.print_special('saved latex behavioral stats to '+latex_dir, False)
+
+			filenames = [dump_dir+''.join(x) for x in zip(\
+														['ttest-']*12,\
+														['processing_pattern-']*4+\
+														['click_var_outcome-']*4+\
+														['click_var_gamble-']*4,\
+														np.tile(['alpha0-','alpha1-'],6).tolist(),
+														np.tile(['cost1']*2+['cost4']*2,3).tolist(),
+														[model_diff_str]*12,
+														[exclude_str+'.txt']*12)]
+
+			table_string = \
+			'\\begin{tabular}{lclll}\n'+\
+			'Behavioral feature & '+\
+			'\\begin{tabular}{@{}c@{}}Condition\\\\(dispersion, cost)\\end{tabular}& '+\
+			'$t$-statistic & $p$-value & '+\
+			'\\begin{tabular}{@{}c@{}}effect size\\\\(Cohen\'s $d$)\\end{tabular}\\\\\n'+\
+			'\\midrule\n'+\
+			'\\\\\n'.join([''.join(x) for x in zip(\
+												['Processing pattern']*4 + \
+												['Attribute variance']*4 + \
+												['Alternative variance']*4, \
+												[' & ']*12,\
+												[' \\begin{tabular}{@{}c@{}} '+y+' \\end{tabular}' for y in \
+													['\\\\'.join(z) for z in zip(np.tile(['$\\alpha^{-1}=10^{-0.5}$','$\\alpha^{-1}=10^{0.5}$'],6).tolist(),
+																				 np.tile(['$\\lambda=1$']*2+['$\\lambda=4$']*2,3).tolist())]], \
+												[' & ']*12,\
+												[open(f,'r').read() for f in filenames])\
+							])+\
+			'\\\\\n'+\
+			'\\bottomrule'+\
+			'\\end{tabular}'
+
+			with open(latex_dir+'table_behavior'+model_diff_str+exclude_str+'.tex', 'w') as f:
+				f.write(table_string)
+
+			p_d.print_special('saved latex table to '+latex_dir+'table_behavior'+model_diff_str+exclude_str+'.tex', False)
 
 def under_performance(exp=cfg.exp1.human):
 	dump_dir, latex_dir = exp.stats+'dump/3/', exp.stats+'3/'
@@ -411,86 +442,94 @@ def under_performance(exp=cfg.exp1.human):
 	exclude_str = '_exclude' if exp.exclude else ''
 	dat = eval(pd.read_csv(exp, usecols=['under_performance'], low_memory=False).iloc[0][0])[0]
 	exp2_str = '' if exp.num==1 else '_'+exp.group
+	pdb.set_trace()
 
 	# model clicks - human clicks
 	x = dat['nr_clicks_dif']
 	with open(latex_dir+'perf-reduc_nr_clicks'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${x:.{1}f}$')
+		f.write(f'${x:.{1}f}$\\unskip')
 
 	# overall perforamcne gap in units of gross reward
 	x = dat['peformance_gap_points']
 	with open(latex_dir+'perf-reduc_points'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${x:.{1}f}$')
+		f.write(f'${x:.{1}f}$\\unskip')
 
 	# overall perforamcne gap in units of gross relative reward
 	x = dat['peformance_gap_gross_abs']
 	with open(latex_dir+'perf-reduc_overall_gross-abs'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${x:.{2}f}$')
+		f.write(f'${x:.{2}f}$\\unskip')
 
 	# overall perforamcne gap in percentage of model gross relative reward
 	x = dat['peformance_gap_gross_pct']
 	with open(latex_dir+'perf-reduc_overall_gross-pct'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${x:.{1}f}\\%$')
+		f.write(f'${x:.{1}f}\\%$\\unskip')
 
 	# overall perforamcne in percentage of model net relative reward
 	x = dat['human_performance_pct']
+	ci = dat['human_performance_pct_CI']
 	with open(latex_dir+'perf-overall-pct'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${x:.{1}f}\\%$')
+		# f.write(f'${x:.{1}f}\\%$\\unskip')
+		f.write(f'${x:.{1}f}\\%$ ($95\\%$ CI [${ci[0]:.{1}f}$, ${ci[1]:.{1}f}$])\\unskip')
 
 	# overall perforamcne gap in units of net relative reward
 	x = dat['peformance_gap_abs']
 	with open(latex_dir+'perf-reduc_overall-abs'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${x:.{1}f}$')
+		f.write(f'${x:.{1}f}$\\unskip')
 
 	# overall perforamcne gap in percentage of model net relative reward
 	x = dat['peformance_gap_pct']
 	with open(latex_dir+'perf-reduc_overall-pct'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${x:.{1}f}\\%$')
+		f.write(f'${x:.{1}f}\\%$\\unskip')
 
 	# reduction in performance from implicit costs, as a fraction of model performance
 	x = dat['implicit_costs_model_fraction']
 	with open(latex_dir+'perf-reduc_implicit-costs_model'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${100*x:.{1}f}\\%$')
+		f.write(f'${100*x:.{1}f}\\%$\\unskip')
 		
 	# reduction in performance from implicit costs, as a fraction of model-human performance gap
-	x = dat['implicit_costs']
+	x = max(0, dat['implicit_costs'])
 	with open(latex_dir+'perf-reduc_implicit-costs'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${100*x:.{1}f}\\%$')
+		f.write(f'${100*x:.{1}f}\\%$\\unskip')
 		
 	# reduction in performance from imperfect use of information, as a fraction of model-human performance gap
 	x = dat['imperfect_info_use']
 	with open(latex_dir+'perf-reduc_info-use'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${100*x:.{1}f}\\%$')
+		f.write(f'${100*x:.{1}f}\\%$\\unskip')
 		
 	# reduction in performance from imperfect strategy selection, as a fraction of model-human performance gap
 	x = dat['imperfect_strat_selec']
 	with open(latex_dir+'perf-reduc_strat-selec'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${100*x:.{1}f}\\%$')
+		f.write(f'${100*x:.{1}f}\\%$\\unskip')
 		
 	# fraction of previous value from random gambling
 	x = dat['imperfect_strat_selec_by_strat'][4] / dat['imperfect_strat_selec']
 	with open(latex_dir+'perf-reduc_strat-selec-from-rand'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${100*x:.{1}f}\\%$')
+		f.write(f'${100*x:.{1}f}\\%$\\unskip')
 		
 	# and random gambling as fraction of total under-performance
 	x = dat['imperfect_strat_selec_by_strat'][4]
 	with open(latex_dir+'perf-reduc_strat-selec-rand'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${100*x:.{1}f}\\%$')
+		f.write(f'${100*x:.{1}f}\\%$\\unskip')
+
+	# and random gambling as fraction of total under-performance
+	x = dat['imperfect_strat_selec_by_strat'][3]
+	with open(latex_dir+'perf-reduc_strat-selec-wadd'+exp2_str+exclude_str+'.txt', 'w') as f:
+		f.write(f'${100*x:.{1}f}\\%$\\unskip')
 		
 	# reduction in performance from imperfect strategy selection, as a fraction of model-human performance gap
 	x = dat['imperfect_strat_exec']
 	with open(latex_dir+'perf-reduc_strat-exec'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${100*x:.{1}f}\\%$')
+		f.write(f'${100*x:.{1}f}\\%$\\unskip')
 
 	# reduction in performance from imperfect strategy selection and execution, as a fraction of model-human performance gap
 	x = dat['imperfect_strat_selec_and_exec']
 	with open(latex_dir+'perf-reduc_strat-selec-exec'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${100*x:.{1}f}\\%$')
+		f.write(f'${100*x:.{1}f}\\%$\\unskip')
 
 	# reduction in performance from imperfect strategy selection and execution, as a fraction of model-human performance gap
 	x = dat['imperfect_info_use_points_lost']
 	with open(latex_dir+'perf-reduc_info-use-pointsPerTrial'+exp2_str+exclude_str+'.txt', 'w') as f:
-		f.write(f'${x:.{1}f}$')
+		f.write(f'${x:.{1}f}$\\unskip')
 
 	p_d.print_special('saved under-performance files to '+latex_dir+'perf-reduc_....txt', False)
 

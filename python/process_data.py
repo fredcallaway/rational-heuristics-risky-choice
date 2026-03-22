@@ -1,7 +1,6 @@
 import os
 import json
 import pickle
-# import bz2
 import gzip
 import numpy as np
 import pandas as pd
@@ -10,6 +9,7 @@ import multiprocessing
 import warnings
 from ast import literal_eval
 from sklearn.cluster import KMeans
+from scipy.stats import sem
 import cfg
 import pdb
 
@@ -23,8 +23,9 @@ def append_features(in_tuple):
 			mat += (c==click_location_map)
 		return mat
 
-	max_EV = pd.read_csv('../data/model/max_EV.csv')
-	max_EV['alpha'] = np.round(max_EV['alpha'],decimals=1)
+	# max_EV = pd.read_csv('../data/model/max_EV_by_condition_math.csv')
+	max_EV = pd.read_csv(dataObj.max_ev)
+	max_EV['alpha'] = np.round(max_EV['alpha'], decimals=1)
 
 	if dataObj.isHuman:
 		dat = pd.read_csv(dataObj.raw)
@@ -132,17 +133,17 @@ def append_features(in_tuple):
 		click_var_outcome = np.var(np.divide(np.sum(click_mat, axis=1), nr_clicks))
 
 		if dataObj.isHuman:
-			out['problem_id'].append(trial['problem_id'])
 			# out['trial'].append(trial['trial_index'])
+			out['pid'].append(trial['pid'])
 			if 'display_ev' in trial:
 				out['display_ev'].append(trial['display_ev'])
-			out['pid'].append(trial['pid'])
-			out['sigma'].append(trial['sigma'])
-			out['alpha'].append(trial['alpha'])
-			out['cost'].append(trial['cost'])
 			# out['probabilities'].append(probabilities)
 			# out['payoff_matrix'].append(trial['payoff_matrix'])
 			# out['choice'].append(choice)
+			out['sigma'].append(trial['sigma'])
+			out['alpha'].append(trial['alpha'])
+			out['cost'].append(trial['cost'])
+			out['problem_id'].append(trial['problem_id'])
 			out['best_choice'].append(choice == best_choice)
 			out['bad_choice'].append(bad_choice)
 			out['payoff_gross_relative_bestBet'].append(payoff_gross_relative_bestBet)
@@ -155,6 +156,8 @@ def append_features(in_tuple):
 		out['payoff_gross_relative'].append(payoff_gross_relative)
 		out['payoff_net_relative'].append(payoff_net_relative)
 		out['payoff_perfect'].append(payoff_perfect)
+		out['payoff_perfect_math'].append(payoff_perfect) #############################################################################
+		out['payoff_perfect_empir'].append(max(EVs_perfect)) #############################################################################
 		out['processing_pattern'].append(processing_pattern)
 		out['click_var_gamble'].append(click_var_gamble)
 		out['click_var_outcome'].append(click_var_outcome)
@@ -178,9 +181,9 @@ def append_features(in_tuple):
 			out[s] = strategy_counts[i] / len(dat)
 		# out['payoff_matrix'] = payoff_matrix
 		# out['probabilities'] = probabilities
-		out['cost'] = cost
-		out['alpha'] = alpha
 		out['sigma'] = sigma
+		out['alpha'] = alpha
+		out['cost'] = cost
 		out['problem_id'] = problem_id
 		out['payoff_net_relative_by_strategy'] = np.nan_to_num(np.sum(out['payoff_net_relative_by_strategy'],axis=0) / strategy_counts).tolist()
 		out['payoff_gross_relative_by_strategy'] = np.nan_to_num(np.sum(out['payoff_gross_relative_by_strategy'],axis=0) / strategy_counts).tolist()
@@ -209,8 +212,27 @@ def append_R_features(df):
 	df['R_cost'] = df['R_cost'].astype(float)
 	return df
 
-def process_raw_data(dataObj_list):
+def save_max_EV_by_condition(human_file):
+	df = pd.read_csv(human_file.raw, low_memory=False)
+	df = df[df['block']=='test']
+	df.loc[:,'alpha'] = df['alpha'].round(decimals=1)
+	df = df.set_index(['sigma','alpha']).sort_index()
+	# df = df.set_index(['sigma','alpha','cost']).sort_index()
+	max_EV_by_condition = defaultdict(list) # {}
+	for idx in df.index.sort_values().unique():
+		probabilities = df.loc[idx,'probabilities'].apply(literal_eval).values.tolist()
+		payoff_matrices = df.loc[idx,'payoff_matrix'].apply(literal_eval).values.tolist()   
+		# max_EV_by_condition[str(idx)] = np.mean([max(np.matmul(p,r)) for p, r in zip(probabilities, payoff_matrices)])
+		max_EV_by_condition['sigma'].append(idx[0])
+		max_EV_by_condition['alpha'].append(idx[1])
+		max_EV_by_condition['mean'].append(np.mean(np.mean([max(np.matmul(p,r)) for p, r in zip(probabilities, payoff_matrices)])))
+	df = pd.DataFrame(max_EV_by_condition)
+	# pickle.dump(max_EV_by_condition, open(human_file.max_ev,'wb'))
+	df.to_csv(human_file.max_ev, index=False)
 
+	print_special('saved '+human_file.max_ev, False)
+
+def process_raw_data(dataObj_list):
 	for dataObj in dataObj_list:
 		with warnings.catch_warnings(): # for np.divide(0,0) and np.nanmean([ [all nans] )
 			warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -238,7 +260,10 @@ def process_raw_data(dataObj_list):
 
 		print_special(f'saved {dataObj} from {dataObj.raw}, and {dataObj.clicks}.gz ({cfg.timer()})', False)
 
-def get_trial_types(df):
+def get_trial_types(df, sigma_alpha_only=False):
+	if sigma_alpha_only:
+		return [(s,a) for s,a in zip(df['sigma'].values,\
+									 df['alpha'].values)]
 	return [(p,s,a,c) for p,s,a,c in zip(df['problem_id'].values,\
 										 df['sigma'].values,\
 										 df['alpha'].values,\
@@ -298,7 +323,8 @@ def match_human_model_trials_and_exclude(dataObjs, dataObjs_exclude):
 		elif dataObj.num==2 and dataObj.group=='both':
 			human_dat = [human_dat_con[0] + human_dat_exp[0], 
 						 np.concatenate((human_dat_con[1], human_dat_exp[1])), 
-						 human_dat_con[2]+' and '+human_dat_exp[2]]
+						 human_dat_con[2]+' and '+human_dat_exp[2],
+						 np.concatenate((human_dat_con[3],human_dat_exp[3]))]
 		else: raise Exception('unrecognized data object')
 		return human_dat
 
@@ -309,17 +335,20 @@ def match_human_model_trials_and_exclude(dataObjs, dataObjs_exclude):
 			if 'human_dat' in locals(): raise Exception('expected only one human data object')
 			human_dat_1 = [get_trial_types(df),
 						   get_good_participant_idx(df, dataObj),
-						   dataObj]
+						   dataObj,
+						   df['pid'].values]
 		elif dataObj.num==2 and dataObj.group=='con':
 			if 'human_dat_con' in locals(): raise Exception('expected only one human data object from control group')
 			human_dat_con = [get_trial_types(df),
 							 get_good_participant_idx(df, dataObj),
-							 dataObj]
+							 dataObj,
+						     df['pid'].values]
 		elif dataObj.num==2 and dataObj.group=='exp':
 			if 'human_dat_exp' in locals(): raise Exception('expected only one human data object from experimental group')
 			human_dat_exp = [get_trial_types(df),
 							 get_good_participant_idx(df, dataObj),
-							 dataObj]
+							 dataObj,
+						     df['pid'].values]
 	np.random.seed(123)
 	for dataObj, dataObj_exclude in zip(dataObjs, dataObjs_exclude):
 		assert(dataObj.num==dataObj_exclude.num and dataObj.group==dataObj_exclude.group and dataObj.isHuman==dataObj_exclude.isHuman)
@@ -339,9 +368,10 @@ def match_human_model_trials_and_exclude(dataObjs, dataObjs_exclude):
 				pickle_out['click_embedding'].append([pickle_in['click_embedding'][idx[0]][j] for j in random_samples])
 				strategies = [pickle_in['strategy'][idx[0]][j] for j in random_samples]
 				pickle_out['strategy'].append(strategies)
-				tmp = dat_model[idx[0]]; tmp['strategy'] = strategies
-				df[i] = tmp
+				df[i] = dat_model[idx[0]]
 			df = pd.DataFrame.from_dict(df, "index")
+			df['strategy'] = pickle_out['strategy']
+			df['pid'] = human_dat[3]
 			df.to_csv(dataObj, index=False)
 			pickle_save(pickle_out, dataObj.clicks)
 			print_special(f'saved {dataObj} and {dataObj.clicks} with rows matched to {human_dat[2]} ({cfg.timer()})', False)
@@ -388,6 +418,7 @@ def append_sources_of_under_performance(model_file, human_file, model_file_fitco
 	out['model_performance'] = np.mean(df1[perf_metric])
 	out['human_performance'] = np.mean(df2[perf_metric])
 	out['human_performance_pct'] = 100 * out['human_performance'] / out['model_performance']
+	out['human_performance_pct_CI'] = errors(100 * df2.groupby('pid').mean()[perf_metric+'_relative'] / df1[perf_metric+'_relative'].mean(), plot=False)
 	out['peformance_gap_abs'] = out['model_performance'] - out['human_performance']
 	out['peformance_gap_pct'] = 100 - out['human_performance_pct']
 	assert(np.isclose(100*out['peformance_gap_abs']/out['model_performance'], out['peformance_gap_pct']))
@@ -420,7 +451,7 @@ def append_sources_of_under_performance(model_file, human_file, model_file_fitco
 	print_special(f'appended sources of under-performance (using performance metric \'{perf_metric}\') in column \'under_performance\' to {human_file} ({cfg.timer()})', False)
 
 def append_kmeans(in_file, k, label_cols=False):
-	# label_cols is for testing many differnt values of k
+	# label_cols is for testing many differnet values of k
 	pd.options.mode.chained_assignment = None
 	
 	df = pd.read_csv(in_file, low_memory=False)
@@ -434,9 +465,9 @@ def append_kmeans(in_file, k, label_cols=False):
 	else:
 		X = [pickle_dict['click_embedding'][i][j] for i in range(len(df)) for j in range(len(pickle_dict['click_embedding'][i]))]
 
-	with warnings.catch_warnings(): # for np.float deprecation
+	with warnings.catch_warnings(): # for np.float deprecation; should be able to remove this after sklearn update
 		warnings.simplefilter("ignore", category=DeprecationWarning)
-		kmeans = KMeans(n_clusters=k, random_state=0).fit(X)
+		kmeans = KMeans(n_clusters=k, random_state=0, algorithm='elkan', n_init=100, max_iter=500).fit(X)
 
 	# make strategy labels using cluster labels
 	if not label_cols and k <= len(strategies):
@@ -472,6 +503,9 @@ def run_process_data(which_experiment='both'):
 
 	if which_experiment == 'both' or int(which_experiment) == 1:
 		exp = cfg.Exp1
+
+		# this must be run before process_raw_data
+		save_max_EV_by_condition(exp.human)
 		
 		dataObjs = [exp.human,
 					exp.model, 
@@ -502,6 +536,9 @@ def run_process_data(which_experiment='both'):
 
 	if which_experiment == 'both' or int(which_experiment) == 2:
 		exp = cfg.Exp2
+
+		# this must be run before process_raw_data
+		save_max_EV_by_condition(exp.human_con) # only need one group because we use both groups for this, and it's used to calculate performance for exclusions
 		
 		dataObjs = [exp.human_con,
 					exp.human_exp,
@@ -567,10 +604,12 @@ def cohen_d(x,y):
 	pooled_std = np.sqrt(((nx-1)*np.std(x, ddof=1) ** 2 + (ny-1)*np.std(y, ddof=1) ** 2) / dof)
 	return (np.mean(x) - np.mean(y)) / pooled_std
 
+def cohen_d_1samp(x):
+	return (np.mean(x) - 0) / np.std(x, ddof=1)
+
 def calc_max_EV():
 	from numpy.random import dirichlet
 	from numpy.random import normal
-	from scipy.stats import sem
 	n = int(1e7)
 	sigmas = [75, 150]
 	alphas = np.logspace(-1,1,5)
@@ -587,7 +626,19 @@ def calc_max_EV():
 			dat['mean'].append(np.mean(tmp))
 			dat['sem'].append(sem(tmp))
 	df = pd.DataFrame(dat)
-	df.to_csv('../data/model/max_EV.csv', index=False)
+	df.to_csv('../data/model/max_EV_by_condition_math.csv', index=False)
+
+def errors(dat, plot=True, method='CI'):
+	if method == 'CI':
+		X = np.nanmean(dat) if plot else 0
+		CI = []
+		for _ in range(int(1e4)):
+			CI.append(np.nanmean(np.random.choice(dat, len(dat))) - X)
+		CI = np.percentile(CI, [2.5, 97.5])
+		if plot: CI = abs(CI)
+		return CI
+	if method == 'SEM':
+		return np.repeat(sem(dat, nan_policy='omit'), 2)
 
 def print_special(print_str, big=True, header=False):
 	if big:

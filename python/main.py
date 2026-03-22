@@ -6,9 +6,9 @@ import process_data as p_d
 import make_figures as mf
 import run_statistics as rs
 
-def data_processing():
+def data_processing(which_experiment='both'):
 
-    p_d.run_process_data(which_experiment='both')
+    p_d.run_process_data(which_experiment=which_experiment)
     p_d.print_special(f'finished processing data ({cfg.timer()})', header=True)
 
 def figures(save=True, show=False):
@@ -65,14 +65,12 @@ def statistics(print_summary=True):
 
     p_d.print_special(f'finished running statistics ({cfg.timer()})', header=True)
 
-with open("main.out", 'w') as f:
-    sys.stdout = f
-    model_runs = ['A/','B/','C/','D/','E/','F/','G/','H/','I/','J/']
-    for m in model_runs + ['']:
-        cfg.basedir(m)
-        importlib.reload(cfg)
-        data_processing()
-        figures()
-        statistics()
-    # change k-means samples to 100
 
+model_runs = ['A/','B/','C/','D/','E/','F/','G/','H/','I/','J/']
+for m in ['']: #model_runs + ['']:
+    p_d.print_special(f'RUN {m} ({cfg.timer()})', header=True)
+    cfg.basedir(m)
+    importlib.reload(cfg)
+    data_processing()
+    figures()
+    statistics()

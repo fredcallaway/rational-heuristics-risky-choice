@@ -29,8 +29,9 @@ class ExpSpecs(str):
 		group_str = '' if num==1 else '_'+group
 		human_dir = basedir.human+'1.0/processed' if num==1 else basedir.human+'2.3/processed'
 		self.clicks = os.path.join(os.path.dirname(self), 'click_embeddings'+group_str+exclude_str+'.pkl')
+		self.max_ev = os.path.join(human_dir, 'max_EV_by_condition.csv')
 		if not isHuman:
-			self.kmeans_sim_trials_per_human_trial = 10
+			self.kmeans_sim_trials_per_human_trial = 1000
 
 	def fig_specs(self, save, show):
 		self.save = save
@@ -117,10 +118,4 @@ def basedir(subdir=''):
 
 exp1 = Exp1()
 exp2 = Exp2()
-
-# fitcost useful attribute?
-# _exclude_exp vs _exp_exclude, etc.
-
-
-
 
