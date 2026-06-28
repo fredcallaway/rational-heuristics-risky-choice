@@ -1,5 +1,6 @@
 import csv
 import os
+from ast import literal_eval
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -7,10 +8,13 @@ NORMALIZER = os.path.join(BASE_DIR, "data/model/max_EV_by_condition_empirical.cs
 TRIAL_FILES = [
     "data/model/exp1/processed/trials.csv",
     "data/model/exp1/processed/trials_exclude.csv",
+    "data/model/exp1_fitcost/processed/trials.csv",
+    "data/model/exp1_fitcost_exclude/processed/trials_exclude.csv",
     "data/human/1.0/processed/trials.csv",
     "data/human/1.0/processed/trials_exclude.csv",
 ]
 MAX_TRIAL_FILE_SIZE = 100 * 1024 * 1024
+MODEL_STRATEGY_SAMPLES = 10
 TOLERANCE = 1e-9
 
 
@@ -43,10 +47,27 @@ def audit_trial_file(path, normalizer):
             payoff_gross = float(row["payoff_gross"])
             payoff_net = float(row["payoff_net"])
             assert_close(float(row["payoff_perfect"]), denom, path, row_number, "payoff_perfect")
-            assert_close(float(row["payoff_gross_relative"]), payoff_gross / denom, path, row_number,
-                         "payoff_gross_relative")
-            assert_close(float(row["payoff_net_relative"]), payoff_net / denom, path, row_number,
-                         "payoff_net_relative")
+            assert_close(
+                float(row["payoff_gross_relative"]),
+                payoff_gross / denom,
+                path,
+                row_number,
+                "payoff_gross_relative",
+            )
+            assert_close(
+                float(row["payoff_net_relative"]),
+                payoff_net / denom,
+                path,
+                row_number,
+                "payoff_net_relative",
+            )
+            if path.startswith("data/model/"):
+                strategy_samples = literal_eval(row["strategy"])
+                if len(strategy_samples) != MODEL_STRATEGY_SAMPLES:
+                    raise AssertionError(
+                        f"{path}:{row_number} has {len(strategy_samples)} strategy samples; "
+                        f"expected {MODEL_STRATEGY_SAMPLES}"
+                    )
 
 
 def main():

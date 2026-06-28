@@ -31,7 +31,7 @@ class ExpSpecs(str):
 		self.clicks = os.path.join(os.path.dirname(self), 'click_embeddings'+group_str+exclude_str+'.pkl')
 		self.max_ev = os.path.join(human_dir, 'max_EV_by_condition.csv')
 		if not isHuman:
-			self.kmeans_sim_trials_per_human_trial = 1000
+			self.kmeans_sim_trials_per_human_trial = 10
 
 	def fig_specs(self, save, show):
 		self.save = save

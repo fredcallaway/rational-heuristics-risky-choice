@@ -238,7 +238,11 @@ def process_raw_data(dataObj_list):
 				trials = append_R_features(trials)
 			else:
 				if os.path.isdir(dataObj.raw):
-					files = [(os.path.join(dataObj.raw, f), dataObj) for f in os.listdir(dataObj.raw) if f[-5:]=='.json']
+					files = [
+						(os.path.join(dataObj.raw, f), dataObj)
+						for f in sorted(os.listdir(dataObj.raw))
+						if f[-5:] == '.json'
+					]
 					nr_processes = multiprocessing.cpu_count()
 					with multiprocessing.Pool(processes=nr_processes) as pool:
 						results = pool.map(append_features, files)
@@ -368,7 +372,6 @@ def match_human_model_trials_and_exclude(dataObjs, dataObjs_exclude):
 				df[i] = dat_model[idx[0]]
 			df = pd.DataFrame.from_dict(df, "index")
 			df['strategy'] = pickle_out['strategy']
-			df['pid'] = human_dat[3]
 			df.to_csv(dataObj, index=False)
 			pickle_save(pickle_out, dataObj.clicks)
 			print_special(f'saved {dataObj} and {dataObj.clicks} with rows matched to {human_dat[2]} ({cfg.timer()})', False)
