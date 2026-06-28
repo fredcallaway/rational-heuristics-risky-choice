@@ -51,7 +51,7 @@ def exp1_strategy_logistic_regression(exp=cfg.exp1):
 	for strategy in strategies:
 		for param in ['sigma','alpha','cost']:
 			try:
-				with open(dump_dir+'R_'+strategy+'-R_'+param+'.txt', 'r') as f:
+				with open(dump_dir+'R_'+strategy+'.txt', 'r') as f:
 					data = f.read().split('\n\n')
 				data = [i.split('\n') for i in data][0]
 			except:
@@ -61,7 +61,7 @@ def exp1_strategy_logistic_regression(exp=cfg.exp1):
 
 			# for param in ['sigma','alpha','cost']:
 			idx = np.where(df['param']==param)[0][0]
-			B, p = df.loc[idx,'beta'], df.loc[idx,'p']
+			B, p = df.iloc[idx]['beta'], df.iloc[idx]['p']
 			p_str = f'= {p:.2}' if p >= 0.001 else '< 0.001'
 			latex_str = f'$B = {B:.2}, p {p_str}$'
 			with open(latex_dir+strategy+'-'+param+'.txt', 'w') as f:
@@ -193,9 +193,9 @@ def exp1_behavioral_features(exp=cfg.exp1):
 				
 				# mixed-effects linear regression of behavioral features on environmental parameters
 				res = smf.mixedlm(p+'~'+c, df_z, groups=df_z['pid']).fit()
-				lm_str1, lm_str2 = f'$B={res.params[1]:.{2}}, p', f'= {res.pvalues[1]:.{2}}$' if res.pvalues[1]>=0.001 else '< 0.001$'
+				lm_str1, lm_str2 = f'$B={res.params.iloc[1]:.{2}}, p', f'= {res.pvalues.iloc[1]:.{2}}$' if res.pvalues.iloc[1]>=0.001 else '< 0.001$'
 				
-				dat = [df_z[df_z[c]==i].groupby('pid').mean()[p].values for i in np.sort(df_z[c].unique())]
+				dat = [df_z[df_z[c]==i].groupby('pid').mean(numeric_only=True)[p].values for i in np.sort(df_z[c].unique())]
 			
 				# main effects, post-hoc comparisons, and effect sizes
 				if len(dat)==2:
