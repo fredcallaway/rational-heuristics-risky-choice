@@ -1,6 +1,6 @@
-rootdir <- "/Users/paulkrueger/Desktop/rational-heuristics-risky-choice/"
-outdir <- paste(rootdir,"stats/exp1/dump/1/",sep='')
-dat <- read.csv(paste(rootdir,"data/human/1.0/processed/trials.csv",sep=''))
+args <- commandArgs(trailingOnly = TRUE)
+outdir <- args[1]   # e.g. ../stats/exp1/dump/1/
+dat <- read.csv(args[2])   # path to processed human trials.csv
 
 library(lme4)
 
