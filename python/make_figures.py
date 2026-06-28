@@ -347,7 +347,7 @@ def exp1_condition_lines(exp=cfg.exp1):
 			'payoff_gross_relative','payoff_gross_relative',\
 			'payoff_net_relative','payoff_net_relative',\
 			'payoff_gross_relative','payoff_gross_relative']
-	labels = ['Information Gathered','Alternative vs. Attribute',\
+	labels = ['Information Gathered','Processing Pattern\n(attribute → alternative)',\
 			'Attribute Variance','Alternative Variance',\
 			'Decision Quality','Decision Quality\n(with exclusions)',\
 			'Relative\nNet Performance','Relative Net Performance\n(with exclusions)',\
