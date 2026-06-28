@@ -59,6 +59,9 @@ class Exp1():
 	human_exclude = ExpSpecs(basedir.human+'1.0/processed/trials_exclude.csv')
 	human_exclude.data_specs(num, True, True, basedir.human+'1.0/trials.csv', None, figs, stats)
 	participants = basedir.human+'1.0/participants.csv'
+	max_ev = basedir.model+'max_EV_by_condition_empirical.csv'
+	for data in [model, model_exclude, model_fitcost, model_fitcost_exclude, human, human_exclude]:
+		data.max_ev = max_ev
 
 	if not os.path.exists(figs): os.makedirs(figs)
 	if not os.path.exists(stats): os.makedirs(stats)
@@ -118,4 +121,3 @@ def basedir(subdir=''):
 
 exp1 = Exp1()
 exp2 = Exp2()
-

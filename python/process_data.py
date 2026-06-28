@@ -23,7 +23,6 @@ def append_features(in_tuple):
 			mat += (c==click_location_map)
 		return mat
 
-	# max_EV = pd.read_csv('../data/model/max_EV_by_condition_math.csv')
 	max_EV = pd.read_csv(dataObj.max_ev)
 	max_EV['alpha'] = np.round(max_EV['alpha'], decimals=1)
 
@@ -156,8 +155,6 @@ def append_features(in_tuple):
 		out['payoff_gross_relative'].append(payoff_gross_relative)
 		out['payoff_net_relative'].append(payoff_net_relative)
 		out['payoff_perfect'].append(payoff_perfect)
-		out['payoff_perfect_math'].append(payoff_perfect) #############################################################################
-		out['payoff_perfect_empir'].append(max(EVs_perfect)) #############################################################################
 		out['processing_pattern'].append(processing_pattern)
 		out['click_var_gamble'].append(click_var_gamble)
 		out['click_var_outcome'].append(click_var_outcome)
