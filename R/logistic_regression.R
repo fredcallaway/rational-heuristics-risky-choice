@@ -8,10 +8,14 @@ rank_desc <- function(x) {
     match(x, sort(unique(x), decreasing = TRUE)) - 1
 }
 
+rank_asc <- function(x) {
+    match(x, sort(unique(x))) - 1
+}
+
 prepare_data <- function(df) {
-    df$sigma <- match(df$sigma, sort(unique(df$sigma))) - 1
+    df$sigma <- rank_asc(df$sigma)
     df$alpha <- rank_desc(df$alpha)
-    df$cost <- rank_desc(df$cost)
+    df$cost <- rank_asc(df$cost)
     for (strategy in c("TTB_SAT", "SAT_TTB", "TTB", "WADD", "Rand", "Other")) {
         df[[strategy]] <- as.integer(df[[strategy]] == "True")
     }
