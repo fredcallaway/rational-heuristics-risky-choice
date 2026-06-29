@@ -35,15 +35,13 @@ def exp1_strategy_logistic_regression(exp=cfg.exp1):
 				df.loc[row,columns[i+1]] = eval(s)
 		return df
 
+	r_script = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'R', 'logistic_regression.R'))
 	try:
-		call_str = '/usr/bin/Rscript --vanilla '+os.path.dirname(os.getcwd())+'/R/logistic_regression.R '+dump_dir+' '+exp.human#+' '+os.getcwd()
-		subprocess.call(call_str, shell=True)
-	except:
-		try:
-			call_str = '/usr/local/bin/Rscript --vanilla '+os.path.dirname(os.getcwd())+'/R/logistic_regression.R '+dump_dir+' '+exp.human#+' '+os.getcwd()
-			subprocess.call (call_str, shell=True)
-		except:
-			p_d.print_special('!!! WARNING: you may need to run ../R/logistic_regression.R !!!')
+		subprocess.run(['Rscript', '--vanilla', r_script, dump_dir, exp.human], check=True)
+	except FileNotFoundError as err:
+		raise RuntimeError('Rscript is required to regenerate Exp. 1 logistic regression stats') from err
+	except subprocess.CalledProcessError as err:
+		raise RuntimeError('Exp. 1 logistic regression failed; refusing to parse stale R output') from err
 
 	if exp.stats.print_summary: p_d.print_special('Results for Exp. 1 logistic regression of strategy frequencies on environment conditions', header=True)
 
