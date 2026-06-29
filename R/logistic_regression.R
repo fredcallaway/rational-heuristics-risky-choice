@@ -4,6 +4,8 @@ dat <- read.csv(args[2])   # path to processed human trials.csv
 
 library(lme4)
 
+dat <- dat[dat$cost > 0,]
+
 rank_desc <- function(x) {
     match(x, sort(unique(x), decreasing = TRUE)) - 1
 }
