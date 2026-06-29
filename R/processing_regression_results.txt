@@ -1,0 +1,64 @@
+Experiment 1 behavioral-feature linear mixed regressions
+Independent R reproduction of run_statistics.py's *_mixedlm.txt outputs.
+Data: /Users/fred/papers/discovering-heuristics/code/data/human/1.0/processed/trials.csv
+Generated: 2026-06-29 16:33:43
+
+Model: lmer(feature ~ predictor + (1 | pid), REML = FALSE), one predictor
+at a time. Predictors are 0-indexed condition ranks (one step = +1):
+sigma = stakes, alpha = dispersion (1/alpha, ranked so higher = MORE
+dispersion / more peaky), cost = cost. p from Wald z test.
+======================================================================
+
+Processing pattern ~ stakes  [processing_pattern ~ sigma]
+  prose:     "more alternative-based processing as the stakes increased"
+  committed: B=0.052, p=0.016
+  R result:  B = 0.052, p = 0.016
+  full:      Estimate=0.05190  SE=0.02155  z=2.408  p=0.016  (n=34197, pid=2133)
+
+Processing pattern ~ dispersion  [processing_pattern ~ alpha]
+  prose:     "more attribute-based processing as dispersion increased (CORRECTED sign)"
+  committed: B=-0.084, p<0.001
+  R result:  B = -0.084, p < 0.001
+  full:      Estimate=-0.08366  SE=0.00742  z=-11.272  p=1.81e-29  (n=34197, pid=2133)
+
+Processing pattern ~ cost  [processing_pattern ~ cost]
+  prose:     "more attribute-based processing as cost increased"
+  committed: B=-0.073, p<0.001
+  R result:  B = -0.073, p < 0.001
+  full:      Estimate=-0.07295  SE=0.00745  z=-9.795  p=1.18e-22  (n=34197, pid=2133)
+
+Attribute variance ~ stakes  [click_var_outcome ~ sigma]
+  prose:     "spread clicks more uniformly across attributes as stakes increase"
+  committed: B=-0.01, p<0.001
+  R result:  B = -0.01, p < 0.001
+  full:      Estimate=-0.01019  SE=0.00261  z=-3.901  p=9.59e-05  (n=38918, pid=2197)
+
+Attribute variance ~ dispersion  [click_var_outcome ~ alpha]
+  prose:     "less evenly across attributes as dispersion increases (Payne paragraph)"
+  committed: B=0.0091, p<0.001
+  R result:  B = 0.0091, p < 0.001
+  full:      Estimate=0.00908  SE=0.00091  z=9.988  p=1.73e-23  (n=38918, pid=2197)
+
+Attribute variance ~ cost  [click_var_outcome ~ cost]
+  prose:     "more discerning across attributes as cost increases"
+  committed: B=0.017, p<0.001
+  R result:  B = 0.017, p < 0.001
+  full:      Estimate=0.01665  SE=0.00086  z=19.457  p=2.55e-84  (n=38918, pid=2197)
+
+Alternative variance ~ stakes  [click_var_gamble ~ sigma]
+  prose:     "spread clicks more uniformly across alternatives as stakes increase"
+  committed: B=-0.004, p=0.0016
+  R result:  B = -0.004, p = 0.0016
+  full:      Estimate=-0.00399  SE=0.00126  z=-3.154  p=0.00161  (n=38918, pid=2197)
+
+Alternative variance ~ dispersion  [click_var_gamble ~ alpha]
+  prose:     "more evenly across alternatives as dispersion increases (Payne paragraph)"
+  committed: B=-0.0026, p<0.001
+  R result:  B = -0.0026, p < 0.001
+  full:      Estimate=-0.00264  SE=0.00045  z=-5.913  p=3.36e-09  (n=38918, pid=2197)
+
+Alternative variance ~ cost  [click_var_gamble ~ cost]
+  prose:     "more discerning across alternatives as cost increases"
+  committed: B=0.009, p<0.001
+  R result:  B = 0.009, p < 0.001
+  full:      Estimate=0.00897  SE=0.00040  z=22.288  p=4.84e-110  (n=38918, pid=2197)
