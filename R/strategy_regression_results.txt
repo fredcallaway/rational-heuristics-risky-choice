@@ -1,7 +1,7 @@
 Experiment 1 strategy logistic regressions
 Reproduction of the statistics in CHANGES-alt.md, section 2.
 Data: /Users/fred/papers/discovering-heuristics/code/data/human/1.0/processed/trials.csv
-Generated: 2026-06-29 11:45:18
+Generated: 2026-06-29 15:39:42
 
 Model: glmer(strategy ~ sigma + alpha + cost + (1 | pid), family = binomial).
 Predictors are 0-indexed condition ranks (one step = +1): sigma = stakes,
@@ -24,15 +24,10 @@ Dispersion effect on TTB  [TTB ~ alpha]
   reported: B = 0.61, p < .001
   full:     Estimate=0.6092  SE=0.0501  z=12.155  p=5.41e-34
 
-Dispersion effect on SAT-TTB  [SAT_TTB ~ alpha]
-  prose:    "participants showed an increase in both strategies (SAT-TTB: ...)"
-  reported: B = 0.22, p < .001
-  full:     Estimate=0.2208  SE=0.0353  z=6.251  p=4.08e-10
-
-Dispersion effect on Targeted Search  [TTB_SAT ~ alpha]
-  prose:    "participants showed an increase in both strategies (... Targeted Search: ...)"
-  reported: B = 0.1, p < .001
-  full:     Estimate=0.1035  SE=0.0282  z=3.671  p=0.000242
+Dispersion effect on random/unclassified  [RandOther ~ alpha]
+  prose:    "participants instead reduced their use of random and unclassified strategies"
+  reported: B = -0.6, p < .001
+  full:     Estimate=-0.6017  SE=0.0458  z=-13.144  p=1.84e-39
 
 Cost effect on Targeted Search  [TTB_SAT ~ cost]
   prose:    "decreasing the use of both targeted search"

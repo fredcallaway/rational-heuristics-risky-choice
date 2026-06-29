@@ -1,6 +1,6 @@
 # Stand-alone reproduction of the Experiment 1 strategy logistic regressions.
 #
-# This script reproduces the regression coefficients quoted in CHANGES-alt.md,
+# This script reproduces the regression coefficients quoted in CHANGES.md,
 # section 2 ("Experiment 1 strategy-regression statistics"). It is functionally
 # the same model as code/R/logistic_regression.R, but instead of writing one
 # dump file per strategy it writes a SINGLE annotated text file in which each
@@ -45,6 +45,8 @@ prepare_data <- function(df) {
     for (strategy in c("TTB_SAT", "SAT_TTB", "TTB", "WADD", "Rand", "Other")) {
         df[[strategy]] <- as.integer(df[[strategy]] == "True")
     }
+    # Combined "random or unclassified" indicator, for the dispersion contrast.
+    df$RandOther <- as.integer(df$Rand == 1 | df$Other == 1)
     df
 }
 
@@ -93,12 +95,15 @@ reports <- list(
     list(label = "Dispersion effect on TTB",
          prose = "Our participants confirmed this prediction (... middle column of Figure 4)",
          strategy = "TTB", param = "alpha"),
-    list(label = "Dispersion effect on SAT-TTB",
-         prose = "participants showed an increase in both strategies (SAT-TTB: ...)",
-         strategy = "SAT_TTB", param = "alpha"),
-    list(label = "Dispersion effect on Targeted Search",
-         prose = "participants showed an increase in both strategies (... Targeted Search: ...)",
-         strategy = "TTB_SAT", param = "alpha"),
+    # list(label = "Dispersion effect on SAT-TTB",
+    #      prose = "participants showed an increase in both strategies (SAT-TTB: ...)",
+    #      strategy = "SAT_TTB", param = "alpha"),
+    # list(label = "Dispersion effect on Targeted Search",
+    #      prose = "participants showed an increase in both strategies (... Targeted Search: ...)",
+    #      strategy = "TTB_SAT", param = "alpha"),
+    list(label = "Dispersion effect on random/unclassified",
+         prose = "participants instead reduced their use of random and unclassified strategies",
+         strategy = "RandOther", param = "alpha"),
     list(label = "Cost effect on Targeted Search",
          prose = "decreasing the use of both targeted search",
          strategy = "TTB_SAT", param = "cost"),
