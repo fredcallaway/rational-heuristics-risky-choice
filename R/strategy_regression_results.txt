@@ -1,0 +1,50 @@
+Experiment 1 strategy logistic regressions
+Reproduction of the statistics in CHANGES-alt.md, section 2.
+Data: /Users/fred/papers/discovering-heuristics/code/data/human/1.0/processed/trials.csv
+Generated: 2026-06-29 11:45:18
+
+Model: glmer(strategy ~ sigma + alpha + cost + (1 | pid), family = binomial).
+Predictors are 0-indexed condition ranks (one step = +1): sigma = stakes,
+alpha = dispersion (1/alpha, ranked so higher = more dispersion), cost = cost.
+Cost effects are from the cost>0 subset, matching logistic_regression.R.
+======================================================================
+
+Stakes effect on SAT-TTB  [SAT_TTB ~ sigma]
+  prose:    "stakes had a significant negative effect on the frequency of SAT-TTB"
+  reported: B = -0.45, p < .001
+  full:     Estimate=-0.4517  SE=0.0994  z=-4.544  p=5.52e-06
+
+Stakes effect on Targeted Search  [TTB_SAT ~ sigma]
+  prose:    "a significant positive effect on the frequency of targeted search"
+  reported: B = 0.26, p < .001
+  full:     Estimate=0.2626  SE=0.0794  z=3.306  p=0.000946
+
+Dispersion effect on TTB  [TTB ~ alpha]
+  prose:    "Our participants confirmed this prediction (... middle column of Figure 4)"
+  reported: B = 0.61, p < .001
+  full:     Estimate=0.6092  SE=0.0501  z=12.155  p=5.41e-34
+
+Dispersion effect on SAT-TTB  [SAT_TTB ~ alpha]
+  prose:    "participants showed an increase in both strategies (SAT-TTB: ...)"
+  reported: B = 0.22, p < .001
+  full:     Estimate=0.2208  SE=0.0353  z=6.251  p=4.08e-10
+
+Dispersion effect on Targeted Search  [TTB_SAT ~ alpha]
+  prose:    "participants showed an increase in both strategies (... Targeted Search: ...)"
+  reported: B = 0.1, p < .001
+  full:     Estimate=0.1035  SE=0.0282  z=3.671  p=0.000242
+
+Cost effect on Targeted Search  [TTB_SAT ~ cost]
+  prose:    "decreasing the use of both targeted search"
+  reported: B = -0.29, p < .001
+  full:     Estimate=-0.2863  SE=0.0381  z=-7.522  p=5.38e-14
+
+Cost effect on TTB  [TTB ~ cost]
+  prose:    "and TTB"
+  reported: B = -0.36, p < .001
+  full:     Estimate=-0.3629  SE=0.0654  z=-5.545  p=2.93e-08
+
+Cost effect on SAT-TTB  [SAT_TTB ~ cost]
+  prose:    "increasing the use of the most frugal strategy, SAT-TTB"
+  reported: B = 0.43, p < .001
+  full:     Estimate=0.4294  SE=0.0471  z=9.117  p=7.74e-20
