@@ -22,7 +22,7 @@ CODE="$(cd "$HERE/.." && pwd)"
 OUT="$HERE/output"
 mkdir -p "$OUT"
 
-PYTHON="${PYTHON:-/Users/fred/.venvs/default/bin/python}"
+PYTHON="${PYTHON:-python}"
 RSCRIPT="${RSCRIPT:-Rscript}"
 TRIALS="$CODE/data/human/1.0/processed/trials.csv"
 
