@@ -1,17 +1,20 @@
 # Correction workflow
 
 This directory produces the marked-up **`output/corrections.pdf`** for the published paper. All
-the code in this directory was written by GPT 5.5 and Opus 4.8 and audited by the second
+the code in this directory was written by GPT 5.5 or Opus 4.8, under supervision of the second
 author (Fred Callaway).
 
-Many of the errors resulted from confusion about what "dispersion" means. The definition
-we ultimately adopt follows Payne et al. (1988). High dispersion means that the outcome
-probabilities are very different from one another; one outcome can be much more likely
-than all others. This is the opposite of the usual statistical definition of dispersion,
-where maximal dispersion corresponds to all outcomes being equally likely. Parts of the
-code assumed the standard statistical definition. As a result, all line plots showing the
-effect of dispersion were flipped along the x axis. This also affected two places in the
-text where an effect was described as being opposite the true direction:
+Four classes of error were identified. Only the first class affected prose/interpretation.
+The remaining classes affected reported statistical results only.
+
+The first, and most serious class resulted from confusion about what "dispersion" means.
+The definition we ultimately adopt follows Payne et al. (1988). High dispersion means that
+the outcome probabilities are very different from one another; one outcome can be much
+more likely than all others. This is the opposite of the usual statistical definition of
+dispersion, where maximal dispersion corresponds to all outcomes being equally likely.
+Parts of the code assumed the standard statistical definition. As a result, all line plots
+showing the effect of dispersion were flipped along the x axis. This also affected two
+places in the text where an effect was described as being opposite the true direction:
 
 1. Higher dispersion in fact leads to more *attribute-based* processing (original:
    alternative-based).
@@ -22,9 +25,13 @@ reported as regressions. Fortunately, these errors only affected the reported st
 The textual descriptions were and are correct. Shockingly, reported p values (all p<.001) remain
 the same; this is explained by the large sample size and a healthy dose of dumb luck.
 
-The final class of error is of the classic copy-paste variety. As with the second class, this
-affected the reported statistics only, not the textual description. In one case, a p=.015 result
-was reported as p<.001. Again, we were extremely lucky here.
+The third class of error arose from an incorrect rank transform that mapped multiple
+condition levels to the same rank. This affected the same exact same regressions as the
+second class.
+
+The final class of error is of the classic copy-paste variety. This affected the reported
+statistics only, not the textual description. In one case, a p=.015 result was reported as
+p<.001. Again, we were extremely lucky here.
 
 *end human-generated content*
 
