@@ -199,7 +199,7 @@ def build(doc):
     strike_text(
         doc[7],
         "one outcome being much more likely than others for low dispersion and all outcomes being roughly equally likely for high dispersion",
-        "all outcomes being roughly equally likely for low dispersion and one outcome much more likely than others for high dispersion",
+        "all outcomes being roughly equally likely for low dispersion and one outcome being much more likely than others for high dispersion",
         expect=3,  # wraps across lines
     )
 
