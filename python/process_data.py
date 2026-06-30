@@ -195,15 +195,18 @@ def append_R_features(df):
 	for s in ['TTB_SAT','SAT_TTB','TTB','WADD','Rand','Other']:
 		# df['R_'+s] = (df[s] - df[s].mean()) / df[s].std(ddof=0)
 		df['R_'+s] = df[s].astype(float)
-	df['R_sigma'] = df['sigma']
-	for i, s in enumerate(df['sigma'].sort_values().unique()):
-		df.loc[df['R_sigma']==s, 'R_sigma'] = i
-	df['R_alpha'] = df['alpha']
-	for i, a in enumerate(np.flip(df['alpha'].sort_values().unique())):
-		df.loc[df['R_alpha']==a, 'R_alpha'] = i
-	df['R_cost'] = df['cost']
-	for i, c in enumerate(np.flip(df['cost'].sort_values().unique())):
-		df.loc[df['R_cost']==c, 'R_cost'] = i
+	
+	# CORRECTIONS: these rank order transforms are incorrectly implemented
+	# The current R code does not use them.
+	# df['R_sigma'] = df['sigma']
+	# for i, s in enumerate(df['sigma'].sort_values().unique()):
+	# 	df.loc[df['R_sigma']==s, 'R_sigma'] = i
+	# df['R_alpha'] = df['alpha']
+	# for i, a in enumerate(np.flip(df['alpha'].sort_values().unique())):
+	# 	df.loc[df['R_alpha']==a, 'R_alpha'] = i
+	# df['R_cost'] = df['cost']
+	# for i, c in enumerate(np.flip(df['cost'].sort_values().unique())):
+	# 	df.loc[df['R_cost']==c, 'R_cost'] = i
 	df['R_sigma'] = df['R_sigma'].astype(float)
 	df['R_alpha'] = df['R_alpha'].astype(float)
 	df['R_cost'] = df['R_cost'].astype(float)
