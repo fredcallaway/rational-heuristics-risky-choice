@@ -1,16 +1,39 @@
 # Correction workflow
 
-Reproducible workflow that produces the marked-up **`corrections.pdf`** for the published
-paper *"Identifying Resource-Rational Heuristics for Risky Choice"* (Psychological Review),
-and proves that the corrected regression numbers in it are consistent with an independent
-R re-derivation from the processed data.
+This directory produces the marked-up **`corrections.pdf`** for the published paper. All
+the code in this directory was written by GPT 5.5 and Opus 4.8 and audited by the second
+author (Fred Callaway).
+
+Many of the errors resulted from confusion about what "dispersion" means. The definition
+we ultimately adopt follows Payne et al. (1988). High dispersion means that the outcome
+probabilities are very different from one another; one outcome can be much more likely
+than all others. This is the opposite of the usual statistical definition of dispersion,
+where maximal dispersion corresponds to all outcomes being equally likely. Parts of the
+code assumed the standard statistical definition. As a result, all line plots showing the
+effect of dispersion were flipped along the x axis. This also affected two places in the
+text where an effect was described as being opposite the true direction:
+
+1. Higher dispersion in fact leads to more *attribute-based* processing (original:
+   alternative-based).
+2. Higher dispersion in fact *increases* decision qualtiy (original: decreases).
+
+A second class of errors arised from incorrectly parsing lme4 output. Intercepts were
+reported as regressions. Fortunately, these errors only affected the reported statistical results.
+The textual descriptions were and are correct. Shockingly, reported p values (all p<.001) remain
+the same; this is explained by the large sample size and a healthy dose of dumb luck.
+
+The final class of error is of the classic copy-paste variety. As with the second class, this
+affected the reported statistics only, not the textual description. In one case, a p=.015 result
+was reported as p<.001. Again, we were extremely lucky here.
+
+*end human-generated content*
 
 ## Run it
 
-One command, from anywhere:
+From this directory (corrections/) run:
 
 ```bash
-code/corrections/run_corrections.sh
+./run_corrections.sh
 ```
 
 This:
@@ -50,16 +73,13 @@ with the `[… ~ …]` tag in the R output.
 - **Proven against R:** the 8 Experiment 1 regression coefficients (7 strategy + 1
   processing-pattern). These are the only *updated numerical* results in the correction.
 - **Not re-derived here** (documented in the log as `chi2` / `kappa`):
-  - The seven Experiment 2 chi-square / effect-size values on p. 919 are copy-paste fixes
-    (the HD conditions cited the LD condition's file). They are corrected in the PDF but not
-    independently recomputed by this workflow.
-  - The Figure B1 participant kappa on p. 931 is a file-reference fix (the caption quoted the
-    model's kappa file). Re-deriving it would require the slow k-means clustering, which is
-    out of scope for the correction.
+  - The seven Experiment 2 chi-square / effect-size values on p. 919 are copy-paste fixes.
+    They are corrected in the PDF but not independently recomputed by this workflow.
+  - The Figure B1 participant kappa on p. 931 is also a file-reference fix.
   - The remaining changes are wording fixes following from the inverted dispersion
     interpretation, plus typos; they have no numerical result to verify.
 
-## Regenerating the replacement figures (optional)
+## Regenerating the replacement figures
 
 The four replacement figures in `<repo>/new-figs/` are the **pre-approved** versions sent
 by a co-author, and the workflow above does not touch them. `make_new_figs.py` re-derives
