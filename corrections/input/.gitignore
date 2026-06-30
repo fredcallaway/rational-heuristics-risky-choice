@@ -1,0 +1,3 @@
+# published.pdf is an 8 MB copy of the paper-repo baseline; don't track it in the
+# code repo. The trials-CSV symlinks (which document the data dependency) are tracked.
+published.pdf

@@ -1,6 +1,6 @@
 # Correction workflow
 
-This directory produces the marked-up **`corrections.pdf`** for the published paper. All
+This directory produces the marked-up **`output/corrections.pdf`** for the published paper. All
 the code in this directory was written by GPT 5.5 and Opus 4.8 and audited by the second
 author (Fred Callaway).
 
@@ -36,25 +36,31 @@ From this directory (corrections/) run:
 ./run_corrections.sh
 ```
 
-This:
+This workflow is fully self-contained: every input lives in `input/` (the trials CSVs are
+symlinks to the processed data under `code/`; `published.pdf` is the baseline to mark up),
+and every output is written to `output/`. Nothing outside `input/`/`output/` is read or
+written.
 
-1. **Re-derives** the Experiment 1 regression coefficients in R from the processed
-   `code/data/human/1.0/processed/trials.csv` (no clustering, no main pipeline; ~1 min).
+1. **Re-derives** the Experiment 1 regression coefficients in R from `input/human_trials.csv`
+   (no clustering, no main pipeline; ~1 min).
 2. **Verifies** those coefficients match the corrected B-values baked into the PDF
    generator. **The run aborts if any value disagrees** — the PDF is not built on failure.
-3. **Builds** `corrections.pdf` and `corrections.log` at the repo root.
+3. **Builds** `output/corrections.pdf` and `output/corrections.log`.
 
 Requirements: `Rscript` with the `lme4` package, and the user's default Python with
 `pymupdf` installed. Override the interpreters with the `RSCRIPT` / `PYTHON` env vars.
 
 ## Outputs
 
+All under `output/`:
+
 | File | What it is |
 | --- | --- |
-| `<repo>/corrections.pdf` | `published.pdf` marked up: strikethroughs over old text with the corrected text in the comment pane; margin notes for the four figure replacements. |
-| `<repo>/corrections.log` | Plain-text log of every annotation (`old` → `new`), tagged by kind. |
-| `corrections/output/{strategy,processing}_regression_results.txt` | The R re-derivation, with each coefficient labelled by the prose it backs. |
-| `corrections/output/verification.log` | Per-coefficient PASS/FAIL of the PDF-vs-R check. |
+| `corrections.pdf` | `published.pdf` marked up: strikethroughs over old text with the corrected text in the comment pane; margin notes for the four figure replacements. |
+| `corrections.log` | Plain-text log of every annotation (`old` → `new`), tagged by kind. |
+| `{strategy,processing}_regression_results.txt` | The R re-derivation, with each coefficient labelled by the prose it backs. |
+| `verification.log` | Per-coefficient PASS/FAIL of the PDF-vs-R check. |
+| `figs/` | The four regenerated replacement figures (only if `make_new_figs.py` is run). |
 
 ## The consistency proof
 
@@ -81,20 +87,18 @@ with the `[… ~ …]` tag in the R output.
 
 ## Regenerating the replacement figures
 
-The four replacement figures in `<repo>/new-figs/` are the **pre-approved** versions sent
-by a co-author, and the workflow above does not touch them. `make_new_figs.py` re-derives
-them self-contained (a trimmed copy of `code/python/make_figures.py::exp1_condition_lines`
-with the inverse-alpha flip), reading only the already-processed model/human trial CSVs:
+`make_new_figs.py` re-derives the four replacement figures self-contained (a trimmed copy
+of `code/python/make_figures.py::exp1_condition_lines` with the inverse-alpha flip),
+reading only the model/human trial CSVs in `input/`:
 
 ```bash
-python make_new_figs.py            # regenerate to a temp dir, leaving new-figs/ untouched
-python make_new_figs.py --write    # overwrite new-figs/
+python make_new_figs.py            # writes output/figs/
 ```
 
-It defaults to a temp dir because the bitmaps are not byte-identical across matplotlib /
-font versions (and the error bars use a bootstrap, so they vary slightly per run); the
-regenerated figures match the approved ones structurally. Keep the committed, approved
-`new-figs/` for the submission unless you have a reason to replace them.
+The bitmaps are not byte-identical across matplotlib / font versions (and the error bars
+use a bootstrap, so they vary slightly per run); the regenerated figures match the
+approved submission versions structurally. They are written to `output/figs/` for
+comparison and are never written outside `corrections/`.
 
 ## Files
 
@@ -103,11 +107,9 @@ regenerated figures match the approved ones structurally. Keep the committed, ap
 | `run_corrections.sh` | Single entry point (R → verify → PDF). |
 | `regression_corrections.py` | Shared source of truth for the corrected regression B-values. |
 | `verify_stats.py` | Checks the PDF's regression values against the R output; exits non-zero on mismatch. |
-| `make_corrections_pdf.py` | Marks up `published.pdf` → `corrections.pdf`, writes `corrections.log`. |
-| `make_new_figs.py` | Optional self-contained regen of the four `new-figs/` replacement figures. |
-| `../R/strategy_regression_standalone.R` | Re-derives the Exp1 strategy logistic regressions. |
-| `../R/processing_regression_standalone.R` | Re-derives the Exp1 processing-pattern mixed model. |
-| `output/` | Generated R results and verification log. |
-
-The full list of correction changes (old/new text, keyed to journal page numbers) lives in
-`<repo>/CHANGES.md`.
+| `make_corrections_pdf.py` | Marks up `input/published.pdf` → `output/corrections.pdf`, writes `output/corrections.log`. |
+| `make_new_figs.py` | Optional self-contained regen of the four replacement figures into `output/figs/`. |
+| `strategy_regression_standalone.R` | Re-derives the Exp1 strategy logistic regressions. |
+| `processing_regression_standalone.R` | Re-derives the Exp1 processing-pattern mixed model. |
+| `input/` | All workflow inputs: trials-CSV symlinks (into `code/data/`) and `published.pdf`. |
+| `output/` | All workflow outputs: marked-up PDF, log, R results, verification log, figures. |

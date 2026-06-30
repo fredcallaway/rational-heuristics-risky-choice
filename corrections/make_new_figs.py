@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Regenerate the four corrected line figures in new-figs/, self-contained.
+"""Regenerate the four corrected line figures, self-contained.
 
 These are the Experiment 1 "condition line" figures whose dispersion (alpha^-1) panels
 were plotted without the inverse-alpha flip in the published paper. This script is a
@@ -8,19 +8,15 @@ needs, process_data.errors), restricted to the four panels that the correction r
 with the dispersion flip applied. It does NOT import or run the main pipeline, touch
 stats, or recluster; it only reads the already-processed model/human trial CSVs.
 
-Output -> <repo>/new-figs/<figN>_<params>.png. By default it writes to a temp dir and
-diffs against the committed new-figs/ instead of overwriting; pass --write to overwrite.
+Output -> corrections/output/figs/<figN>_<params>.png. This stays entirely within
+corrections/output and never writes anywhere else.
 
-    python make_new_figs.py            # regenerate to temp, diff vs committed new-figs/
-    python make_new_figs.py --write    # overwrite new-figs/
+    python make_new_figs.py
 
 The flip is the `# flip for inverse alpha` lines, matching make_figures.py:397,402.
 """
 
-import argparse
 import os
-import shutil
-import tempfile
 
 import numpy as np
 import pandas as pd
@@ -31,16 +27,15 @@ import matplotlib.pyplot as plt
 from matplotlib import gridspec
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CODE = os.path.normpath(os.path.join(HERE, ".."))
-REPO_ROOT = os.path.normpath(os.path.join(CODE, ".."))
-DATA = os.path.join(CODE, "data")
+IN = os.path.join(HERE, "input")
+OUT_FIGS = os.path.join(HERE, "output", "figs")
 
-MODEL = os.path.join(DATA, "model", "exp1", "processed", "trials.csv")
-MODEL_EXCLUDE = os.path.join(DATA, "model", "exp1", "processed", "trials_exclude.csv")
-HUMAN = os.path.join(DATA, "human", "1.0", "processed", "trials.csv")
-HUMAN_EXCLUDE = os.path.join(DATA, "human", "1.0", "processed", "trials_exclude.csv")
+MODEL = os.path.join(IN, "model_trials.csv")
+MODEL_EXCLUDE = os.path.join(IN, "model_trials_exclude.csv")
+HUMAN = os.path.join(IN, "human_trials.csv")
+HUMAN_EXCLUDE = os.path.join(IN, "human_trials_exclude.csv")
 
-# The four replacement figures, keyed by their new-figs/ filename. Each is one or two
+# The four replacement figures, keyed by their output filename. Each is one or two
 # rows of (param, y-axis label, exclude-flag, y-limits), exactly as in make_figures.py.
 FIGURES = {
     "fig5_nr_clicks__processing_pattern.png": [
@@ -145,24 +140,13 @@ def make_figure(rows, out_path):
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--write", action="store_true",
-                    help="overwrite ../../new-figs/ instead of writing to a temp dir")
-    args = ap.parse_args()
-
-    dest = os.path.join(REPO_ROOT, "new-figs")
-    out_dir = dest if args.write else tempfile.mkdtemp(prefix="new-figs-")
-    os.makedirs(out_dir, exist_ok=True)
-
+    os.makedirs(OUT_FIGS, exist_ok=True)
     for fname, rows in FIGURES.items():
-        path = os.path.join(out_dir, fname)
+        path = os.path.join(OUT_FIGS, fname)
         make_figure(rows, path)
         print(f"wrote {path}")
-
-    if not args.write:
-        print(f"\n(regenerated in {out_dir}; not overwriting committed new-figs/.")
-        print(" pass --write to overwrite, or compare manually — bitmaps are not")
-        print(" byte-identical across matplotlib/font versions.)")
+    print("\n(regenerated in corrections/output/figs/. Compare manually — bitmaps are")
+    print(" not byte-identical across matplotlib/font versions.)")
 
 
 if __name__ == "__main__":

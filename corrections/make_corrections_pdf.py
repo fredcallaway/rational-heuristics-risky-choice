@@ -9,7 +9,7 @@ The corrected text shows up in the comment/markup pane of any PDF reader (Previe
 Acrobat).
 
 This module is normally driven by corrections/run_corrections.sh, but can be run alone:
-    python make_corrections_pdf.py            # writes ../../corrections.pdf + log
+    python make_corrections_pdf.py            # reads input/, writes output/
 
 The two regression sections (Exp1 strategy regressions p. 913, Exp1 processing-pattern
 p. 915) take their corrected B-values from regression_corrections.py, the same records
@@ -31,11 +31,10 @@ import fitz  # PyMuPDF
 import regression_corrections as rc
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 
-SRC = os.path.join(REPO_ROOT, "published.pdf")
-OUT = os.path.join(REPO_ROOT, "corrections.pdf")
-LOG = os.path.join(REPO_ROOT, "corrections.log")
+SRC = os.path.join(HERE, "input", "published.pdf")
+OUT = os.path.join(HERE, "output", "corrections.pdf")
+LOG = os.path.join(HERE, "output", "corrections.log")
 
 RED = (0.85, 0.1, 0.1)
 
@@ -109,12 +108,12 @@ def figure_note(page, comment):
 
 def build(doc):
     # ===== 1. Changes to figures (margin notes; no text anchor) =====
-    # Figure -> (PDF page index, replacement filename in new-figs/).
+    # Figure -> (PDF page index, replacement filename produced by make_new_figs.py).
     figures = [
-        (10, "Figure 5: replace with new-figs/fig5_nr_clicks__processing_pattern.png"),
-        (11, "Figure 6: replace with new-figs/fig6_payoff_gross_relative.png"),
-        (34, "Figure E2: replace with new-figs/figE2_click_var_outcome__click_var_gamble.png"),
-        (40, "Figure F1: replace with new-figs/figF1_payoff_gross_relative_exclude.png"),
+        (10, "Figure 5: replace with fig5_nr_clicks__processing_pattern.png"),
+        (11, "Figure 6: replace with fig6_payoff_gross_relative.png"),
+        (34, "Figure E2: replace with figE2_click_var_outcome__click_var_gamble.png"),
+        (40, "Figure F1: replace with figF1_payoff_gross_relative_exclude.png"),
     ]
     for pidx, note in figures:
         figure_note(doc[pidx], note)
@@ -230,7 +229,7 @@ def write_log(path):
     """Write the plain-text change log: one block per annotation, grouped by kind."""
     lines = [
         "corrections.pdf change log",
-        f"source: {os.path.relpath(SRC, REPO_ROOT)}",
+        f"source: {os.path.relpath(SRC, HERE)}",
         f"annotations: {len(CHANGE_LOG)}",
         "",
         "kind legend: regression = proven against the standalone R scripts;",

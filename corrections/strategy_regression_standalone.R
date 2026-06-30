@@ -9,9 +9,9 @@
 #
 # Usage (from anywhere):
 #     Rscript --vanilla strategy_regression_standalone.R [data.csv] [out.txt]
-# Defaults:
-#     data.csv -> ../data/human/1.0/processed/trials.csv  (relative to this script)
-#     out.txt  -> strategy_regression_results.txt         (next to this script)
+# Defaults (all relative to this script, staying within corrections/):
+#     data.csv -> input/human_trials.csv
+#     out.txt  -> output/strategy_regression_results.txt
 
 suppressPackageStartupMessages(library(lme4))
 
@@ -23,9 +23,9 @@ script_dir <- if (length(this_file)) dirname(normalizePath(this_file)) else getw
 
 args <- commandArgs(trailingOnly = TRUE)
 data_path <- if (length(args) >= 1) args[1] else
-    file.path(script_dir, "..", "data", "human", "1.0", "processed", "trials.csv")
+    file.path(script_dir, "input", "human_trials.csv")
 out_path <- if (length(args) >= 2) args[2] else
-    file.path(script_dir, "strategy_regression_results.txt")
+    file.path(script_dir, "output", "strategy_regression_results.txt")
 
 # ---------------------------------------------------------------------------
 # Data prep: identical coding to logistic_regression.R.
